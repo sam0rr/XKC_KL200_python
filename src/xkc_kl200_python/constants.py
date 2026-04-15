@@ -37,6 +37,8 @@ CODE_TO_BAUD_RATE = {code: baudrate for baudrate, code in BAUD_RATE_TO_CODE.item
 
 
 class XKC_KL200_Error(IntEnum):
+    """Protocol-level status codes returned by the library API."""
+
     SUCCESS = 0
     INVALID_PARAMETER = 1
     TIMEOUT = 2
@@ -45,11 +47,15 @@ class XKC_KL200_Error(IntEnum):
 
 
 class UploadMode(IntEnum):
+    """Sensor upload mode values."""
+
     MANUAL = 0
     AUTO = 1
 
 
 class LedMode(IntEnum):
+    """Supported LED behavior modes."""
+
     ON_WHEN_DETECTED = 0
     OFF_WHEN_DETECTED = 1
     ALWAYS_OFF = 2
@@ -57,10 +63,14 @@ class LedMode(IntEnum):
 
 
 class RelayMode(IntEnum):
+    """Supported relay output modes."""
+
     ACTIVE_WHEN_DETECTED = 0
     INACTIVE_WHEN_DETECTED = 1
 
 
 class CommunicationMode(IntEnum):
+    """High-level communication operating modes."""
+
     RELAY = 0
     UART = 1

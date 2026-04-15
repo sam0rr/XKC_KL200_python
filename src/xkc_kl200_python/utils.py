@@ -6,6 +6,8 @@ from .constants import COMMAND_HEADER, FRAME_LENGTH, SYSTEM_HEADER
 
 @dataclass(frozen=True)
 class ProtocolFrame:
+    """Decoded view of a raw 9-byte XKC-KL200 protocol frame."""
+
     header: int
     command: int
     length: int
@@ -16,6 +18,7 @@ class ProtocolFrame:
 
 
 def calculate_checksum(data: Sequence[int]) -> int:
+    """Compute the protocol XOR checksum for a byte sequence."""
     checksum = 0
     for byte in data:
         checksum ^= byte
@@ -31,6 +34,7 @@ def build_command_frame(
     data_low: int = 0,
     tail: int = 0,
 ) -> bytes:
+    """Build a validated command frame with an automatically computed checksum."""
     frame = bytearray(
         [
             header,
@@ -49,6 +53,7 @@ def build_command_frame(
 
 
 def parse_frame(frame: bytes, *, expected_command: int | None = None) -> ProtocolFrame:
+    """Validate and decode a raw protocol frame."""
     if len(frame) != FRAME_LENGTH:
         raise ValueError(f"Protocol frame must be exactly {FRAME_LENGTH} bytes")
 
@@ -76,6 +81,7 @@ def parse_frame(frame: bytes, *, expected_command: int | None = None) -> Protoco
 
 
 def parse_measurement_frame(frame: bytes) -> tuple[int, int]:
+    """Decode a distance measurement frame into address and millimeters."""
     parsed = parse_frame(frame, expected_command=0x33)
     distance_mm = (parsed.data_high << 8) | parsed.data_low
     return parsed.address, distance_mm

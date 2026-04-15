@@ -10,6 +10,8 @@ from .constants import (
 
 @dataclass
 class SensorConfig:
+    """Serial connection settings for an XKC-KL200 sensor instance."""
+
     port: str
     baudrate: int = 9600
     timeout: float = 1.0
@@ -17,6 +19,7 @@ class SensorConfig:
     startup_delay_s: float = 0.1
 
     def __post_init__(self) -> None:
+        """Validate configuration values at construction time."""
         if not self.port:
             raise ValueError("port must be a non-empty string")
         if self.baudrate not in BAUD_RATE_TO_CODE:
@@ -32,6 +35,7 @@ class SensorConfig:
 
     @staticmethod
     def _is_valid_address(address: int) -> bool:
+        """Return True when the address is valid for this protocol."""
         return (
             MIN_ADDRESS <= address <= MAX_ADDRESS or address == DEFAULT_SENSOR_ADDRESS
         )
