@@ -1,8 +1,10 @@
 # XKC KL200 Python
 
+---
+
 A simplified, typed, and testable Python library for controlling the `XKC-KL200-2M-UART` laser distance sensor over a serial connection.
 
-This repository follows the same library architecture style as `cubemars_servo_can`: modern `pyproject.toml` packaging, `src` layout, strict typing, mock-based tests, and lightweight documentation.
+---
 
 ## Key Features
 
@@ -10,6 +12,8 @@ This repository follows the same library architecture style as `cubemars_servo_c
 - Structured modules for config, protocol constants, serial transport, state, and utilities.
 - No hardware required for tests because the serial link is mocked.
 - `uv`, `black`, `ruff`, `mypy`, and `pytest` ready from the start.
+
+---
 
 ## Quick Start
 
@@ -27,7 +31,7 @@ pip install git+https://github.com/sam0rr/XKC_KL200_python.git
 
 ### 2. Run
 
-### Raspberry Pi Notes
+#### Raspberry Pi Notes
 
 For Raspberry Pi, the recommended UART device is usually `/dev/serial0`.
 
@@ -64,6 +68,48 @@ with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
 
 If you are not using the Raspberry Pi UART header and instead use a USB-to-UART adapter, replace `/dev/serial0` with the matching device such as `/dev/ttyUSB0`.
 
+### Raspberry Pi Multi-Sensor Setup
+
+This project has also been validated with the [XKC-KL200 Laser Distance Measurement Sensor](https://www.xkc-sensor.com/detail/1449.html) in a Raspberry Pi setup that uses:
+
+- `UART1`, `UART2`, `UART3`, and `UART5` for four sensors
+- `SPI0` for an `MCP2515` CAN controller
+- no `UART4`, because it conflicts with the SPI0 pin block in this wiring layout
+
+For the UART-capable XKC-KL200 family, the sensor wiring used in this setup is:
+
+- `Brown` -> `5V`
+- `Blue` -> `GND`
+- `Yellow` -> Raspberry Pi `RX`
+- `Black` -> Raspberry Pi `TX`
+
+The active `/boot/firmware/config.txt` overlay block is:
+
+```ini
+[all]
+dtoverlay=disable-bt
+enable_uart=1
+dtoverlay=uart2
+dtoverlay=uart3
+dtoverlay=uart5
+```
+
+In this four-sensor Raspberry Pi deployment, the active UART mapping is:
+
+- `UART1` -> `GPIO14 / GPIO15`
+- `UART2` -> `GPIO0 / GPIO1`
+- `UART3` -> `GPIO4 / GPIO5`
+- `UART5` -> `GPIO12 / GPIO13`
+
+Typical device names for those UARTs are:
+
+- `/dev/ttyAMA0`
+- `/dev/ttyAMA2`
+- `/dev/ttyAMA3`
+- `/dev/ttyAMA5`
+
+The full wiring and overlay reference is documented in [docs/configuration.md](docs/configuration.md). Raspberry Pi overlay behavior is described in the [official configuration documentation](https://www.raspberrypi.com/documentation/computers/configuration.html).
+
 ### 3. Upgrade
 
 Update to the latest repository version:
@@ -76,10 +122,14 @@ uv add --upgrade git+https://github.com/sam0rr/XKC_KL200_python.git
 pip install --upgrade git+https://github.com/sam0rr/XKC_KL200_python.git
 ```
 
+---
+
 ## Documentation
 
 - [Usage Guide](docs/usage.md)
 - [Configuration Guide](docs/configuration.md)
+
+---
 
 ## Project Structure
 
@@ -108,6 +158,8 @@ pip install --upgrade git+https://github.com/sam0rr/XKC_KL200_python.git
 └── examples/
     └── main.py
 ```
+
+---
 
 ## Development
 
@@ -144,3 +196,5 @@ uv run mypy
 ```bash
 uv run pytest
 ```
+
+---
