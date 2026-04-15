@@ -24,12 +24,25 @@ uv add git+https://github.com/sam0rr/XKC_KL200_python.git
 # Install into the current Python environment (pip)
 pip install git+https://github.com/sam0rr/XKC_KL200_python.git
 ```
+
 ### 2. Run
+
+### Raspberry Pi Notes
+
+For Raspberry Pi, the recommended UART device is usually `/dev/serial0`.
+
+Before running the library on a Pi:
+
+- enable the hardware UART
+- disable the Linux serial console on that UART
+- make sure the sensor is using `UART` communication mode
+- make sure the sensor UART level is compatible with the Pi `3.3V` UART pins
+- connect `TX -> RX`, `RX -> TX`, and `GND -> GND`
 
 ```python
 from xkc_kl200_python import XKC_KL200
 
-with XKC_KL200(port="/dev/ttyUSB0") as sensor:
+with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
     sensor.set_upload_mode(False)
     distance_mm = sensor.read_distance()
     print(f"Distance: {distance_mm} mm")
@@ -40,7 +53,7 @@ For continuous mode:
 ```python
 from xkc_kl200_python import XKC_KL200
 
-with XKC_KL200(port="/dev/ttyUSB0") as sensor:
+with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
     sensor.set_upload_mode(True)
     sensor.set_upload_interval(10)
 
@@ -48,6 +61,8 @@ with XKC_KL200(port="/dev/ttyUSB0") as sensor:
         if sensor.process_auto_data():
             print(sensor.get_distance())
 ```
+
+If you are not using the Raspberry Pi UART header and instead use a USB-to-UART adapter, replace `/dev/serial0` with the matching device such as `/dev/ttyUSB0`.
 
 ### 3. Upgrade
 
