@@ -40,11 +40,11 @@ def test_hard_and_soft_reset(serial_factory: FakeSerialFactory) -> None:
     serial_port.queue_read(
         build_command_frame(header=0x62, command=0x39, address=0xFFFF)
     )
+
+    assert sensor.hard_reset() == XKC_KL200_Error.SUCCESS
     serial_port.queue_read(
         build_command_frame(header=0x62, command=0x39, address=0xFFFF)
     )
-
-    assert sensor.hard_reset() == XKC_KL200_Error.SUCCESS
     assert sensor.soft_reset() == XKC_KL200_Error.SUCCESS
 
 
@@ -189,6 +189,23 @@ def test_wait_for_response_timeout_and_errors(
         build_command_frame(header=0x62, command=0x35, address=0xFFFF)
     )
     assert sensor._wait_for_response(0x34) == XKC_KL200_Error.RESPONSE_ERROR
+
+
+def test_wait_for_response_ignores_measurement_frame_before_ack(
+    serial_factory: FakeSerialFactory,
+) -> None:
+    sensor = make_sensor(serial_factory, timeout=0.01)
+    serial_port = serial_factory.holder["serial"]
+    serial_port.queue_read(
+        bytes([0x62, 0x33, 0x09, 0x00, 0x01, 0x00, 0x64, 0x00, 0x3D])
+    )
+    serial_port.queue_read(
+        build_command_frame(header=0x62, command=0x34, address=0x0001)
+    )
+
+    assert sensor._wait_for_response(0x34) == XKC_KL200_Error.SUCCESS
+    assert sensor.get_last_received_distance() == 100
+    assert sensor.state.address == 0x0001
 
 
 def test_resolve_baud_rate_code_static_helper() -> None:

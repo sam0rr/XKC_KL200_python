@@ -35,7 +35,7 @@ def test_process_auto_data_reads_measurement(
     sensor = XKC_KL200(port="/dev/ttyUSB0", timeout=0.01, serial_factory=serial_factory)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
-        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=1)
+        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=0)
     )
     assert sensor.set_upload_mode(True) == XKC_KL200_Error.SUCCESS
 

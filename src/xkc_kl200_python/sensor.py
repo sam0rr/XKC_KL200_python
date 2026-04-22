@@ -258,23 +258,50 @@ class XKC_KL200:
             tail=tail,
         )
         self._serial_manager.write_frame(frame)
-        return self._wait_for_response(expected_command=command)
+        result = self._wait_for_response(expected_command=command)
+        if result == XKC_KL200_Error.SUCCESS:
+            self._discard_pending_input()
+        return result
 
     def _wait_for_response(self, expected_command: int) -> XKC_KL200_Error:
         """Read and classify the next response frame for a command."""
-        response = self._serial_manager.read_exact(FRAME_LENGTH, self.config.timeout)
-        if response is None:
-            return XKC_KL200_Error.TIMEOUT
+        deadline = time.monotonic() + self.config.timeout
+        last_error = XKC_KL200_Error.TIMEOUT
 
-        try:
-            parsed = parse_frame(response, expected_command=expected_command)
-        except ValueError as exc:
-            if "checksum" in str(exc).lower():
-                return XKC_KL200_Error.CHECKSUM_ERROR
-            return XKC_KL200_Error.RESPONSE_ERROR
+        while True:
+            remaining = max(0.0, deadline - time.monotonic())
+            response = self._serial_manager.read_exact(FRAME_LENGTH, remaining)
+            if response is None:
+                return last_error
 
-        self._state.address = parsed.address
-        return XKC_KL200_Error.SUCCESS
+            try:
+                parsed = parse_frame(response)
+            except ValueError as exc:
+                if "checksum" in str(exc).lower():
+                    last_error = XKC_KL200_Error.CHECKSUM_ERROR
+                else:
+                    last_error = XKC_KL200_Error.RESPONSE_ERROR
+                if time.monotonic() >= deadline:
+                    return last_error
+                continue
+
+            if parsed.command != expected_command:
+                if parsed.command == READ_DISTANCE_COMMAND:
+                    distance_mm = (parsed.data_high << 8) | parsed.data_low
+                    self._state.mark_measurement(distance_mm, parsed.address)
+                last_error = XKC_KL200_Error.RESPONSE_ERROR
+                if time.monotonic() >= deadline:
+                    return last_error
+                continue
+
+            self._state.address = parsed.address
+            return XKC_KL200_Error.SUCCESS
+
+    def _discard_pending_input(self) -> None:
+        """Drop any buffered bytes before or after command acknowledgements."""
+        pending = self._serial_manager.bytes_available
+        if pending > 0:
+            self._serial_manager.discard(pending)
 
     @staticmethod
     def _resolve_baud_rate_code(baud_rate: int) -> int | None:
