@@ -229,7 +229,7 @@ def test_send_ack_command_discards_pending_input_after_success(
     sensor = make_sensor(serial_factory, timeout=0.01)
     serial_port = serial_factory.holder["serial"]
     ack_with_trailing_bytes = (
-        build_command_frame(header=0x62, command=0x34, address=0xFFFF) + b"\xAA\xBB"
+        build_command_frame(header=0x62, command=0x34, address=0xFFFF) + b"\xaa\xbb"
     )
     serial_port.queue_read(ack_with_trailing_bytes)
 

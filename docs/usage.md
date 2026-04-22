@@ -44,9 +44,19 @@ with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
     sensor.set_upload_interval(5)
 
     while True:
-        if sensor.process_auto_data():
-            print(sensor.get_distance())
+        print(sensor.read_distance())
 ```
+
+`read_distance()` works in both modes:
+
+- In manual mode, it requests a fresh measurement.
+- In auto mode, it drains any queued upload frames and waits briefly for the next frame.
+
+`set_upload_interval()` still uses protocol units:
+
+- `1` = `100 ms`
+- `5` = `500 ms`
+- `10` = `1.0 s`
 
 ## Configuration Commands
 

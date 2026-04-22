@@ -138,10 +138,22 @@ class XKC_KL200:
         """Set the automatic upload interval in protocol units."""
         if not MIN_UPLOAD_INTERVAL <= interval <= MAX_UPLOAD_INTERVAL:
             return XKC_KL200_Error.INVALID_PARAMETER
-        return self._send_ack_command(
+        was_auto_enabled = self._state.auto_upload_enabled
+        if was_auto_enabled:
+            result = self.set_upload_mode(False)
+            if result != XKC_KL200_Error.SUCCESS:
+                return result
+
+        result = self._send_ack_command(
             command=SET_UPLOAD_INTERVAL_COMMAND,
             data_low=interval,
         )
+        if result != XKC_KL200_Error.SUCCESS:
+            return result
+
+        if was_auto_enabled:
+            return self.set_upload_mode(True)
+        return XKC_KL200_Error.SUCCESS
 
     def set_led_mode(self, mode: int | LedMode) -> XKC_KL200_Error:
         """Configure the sensor LED behavior."""
@@ -175,9 +187,9 @@ class XKC_KL200:
         )
 
     def read_distance(self, timeout: float | None = None) -> int:
-        """Read one distance measurement in manual mode."""
+        """Read the latest distance in manual or automatic-upload mode."""
         if self._state.auto_upload_enabled:
-            return self._state.last_received_distance_mm
+            return self._read_auto_distance(timeout)
 
         self._serial_manager.write_frame(
             build_command_frame(
@@ -238,6 +250,22 @@ class XKC_KL200:
     def get_last_received_distance(self) -> int:
         """Return the latest received distance without changing state flags."""
         return self._state.last_received_distance_mm
+
+    def _read_auto_distance(self, timeout: float | None) -> int:
+        """Drain or wait for uploaded measurements and return the latest value."""
+        deadline = time.monotonic() + (
+            self.config.timeout if timeout is None else timeout
+        )
+
+        while True:
+            received = False
+            while self.process_auto_data():
+                received = True
+
+            if received or time.monotonic() >= deadline:
+                return self._state.last_received_distance_mm
+
+            time.sleep(0.001)
 
     def _send_ack_command(
         self,

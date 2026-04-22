@@ -1,4 +1,5 @@
 from conftest import FakeSerialFactory
+from pytest import MonkeyPatch
 
 from xkc_kl200_python import XKC_KL200
 from xkc_kl200_python.constants import XKC_KL200_Error
@@ -27,6 +28,52 @@ def test_read_distance_timeout_returns_last_distance(
     sensor.state.last_received_distance_mm = 123
 
     assert sensor.read_distance(timeout=0.0) == 123
+
+
+def test_read_distance_in_auto_mode_drains_uploaded_frame(
+    serial_factory: FakeSerialFactory,
+) -> None:
+    sensor = XKC_KL200(port="/dev/ttyUSB0", timeout=0.01, serial_factory=serial_factory)
+    sensor.state.auto_upload_enabled = True
+    serial_port = serial_factory.holder["serial"]
+    serial_port.queue_read(
+        bytes([0x62, 0x33, 0x09, 0x00, 0x01, 0x00, 0x64, 0x00, 0x3D])
+    )
+
+    distance = sensor.read_distance(timeout=0.0)
+
+    assert distance == 100
+    assert sensor.get_last_received_distance() == 100
+
+
+def test_read_distance_in_auto_mode_waits_for_next_frame(
+    serial_factory: FakeSerialFactory, monkeypatch: MonkeyPatch
+) -> None:
+    sensor = XKC_KL200(port="/dev/ttyUSB0", timeout=0.01, serial_factory=serial_factory)
+    sensor.state.auto_upload_enabled = True
+    sensor.state.last_received_distance_mm = 88
+    process_results = iter([False, False, True, False])
+    monotonic_values = iter([0.0, 0.0001, 0.0002, 0.0003, 0.0004])
+
+    def fake_process_auto_data() -> bool:
+        result = next(process_results)
+        if result:
+            sensor.state.mark_measurement(144, address=0x0001)
+        return result
+
+    monkeypatch.setattr(sensor, "process_auto_data", fake_process_auto_data)
+    monkeypatch.setattr(
+        "xkc_kl200_python.sensor.time.monotonic", lambda: next(monotonic_values)
+    )
+    sleep_calls: list[float] = []
+    monkeypatch.setattr(
+        "xkc_kl200_python.sensor.time.sleep", lambda delay: sleep_calls.append(delay)
+    )
+
+    distance = sensor.read_distance(timeout=0.01)
+
+    assert distance == 144
+    assert sleep_calls == [0.001, 0.001]
 
 
 def test_process_auto_data_reads_measurement(

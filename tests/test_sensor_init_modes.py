@@ -78,9 +78,6 @@ def test_set_upload_interval_after_enabling_auto_upload(
             )
         elif command == 0x35:
             serial_port.queue_read(
-                bytes([0x62, 0x33, 0x09, 0x00, 0x01, 0x00, 0x64, 0x00, 0x3D])
-            )
-            serial_port.queue_read(
                 build_command_frame(header=0x62, command=0x35, address=0xFFFF)
             )
         return len(data)
@@ -92,11 +89,45 @@ def test_set_upload_interval_after_enabling_auto_upload(
 
     assert result == XKC_KL200_Error.SUCCESS
     assert sensor.state.auto_upload_enabled is True
-    assert sensor.get_last_received_distance() == 100
     assert serial_port.written_frames == [
         build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=1),
+        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=0),
         build_command_frame(header=0x62, command=0x35, address=0xFFFF, data_low=10),
+        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=1),
     ]
+
+
+def test_set_upload_interval_returns_disable_error_when_auto_mode_turn_off_fails(
+    serial_factory: FakeSerialFactory, monkeypatch: MonkeyPatch
+) -> None:
+    sensor = XKC_KL200(
+        port="/dev/ttyUSB0",
+        timeout=0.01,
+        config=None,
+        serial_factory=serial_factory,
+    )
+    sensor.state.auto_upload_enabled = True
+    monkeypatch.setattr(
+        sensor, "set_upload_mode", lambda auto_upload: XKC_KL200_Error.TIMEOUT
+    )
+
+    assert sensor.set_upload_interval(10) == XKC_KL200_Error.TIMEOUT
+
+
+def test_set_upload_interval_propagates_interval_command_error(
+    serial_factory: FakeSerialFactory, monkeypatch: MonkeyPatch
+) -> None:
+    sensor = XKC_KL200(
+        port="/dev/ttyUSB0",
+        timeout=0.01,
+        config=None,
+        serial_factory=serial_factory,
+    )
+    monkeypatch.setattr(
+        sensor, "_send_ack_command", lambda **kwargs: XKC_KL200_Error.TIMEOUT
+    )
+
+    assert sensor.set_upload_interval(10) == XKC_KL200_Error.TIMEOUT
 
 
 def test_invalid_led_mode_returns_invalid_parameter(

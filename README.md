@@ -62,8 +62,7 @@ with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
     sensor.set_upload_interval(10)
 
     while True:
-        if sensor.process_auto_data():
-            print(sensor.get_distance())
+        print(sensor.read_distance())
 ```
 
 If you are not using the Raspberry Pi UART header and instead use a USB-to-UART adapter, replace `/dev/serial0` with the matching device such as `/dev/ttyUSB0`.
