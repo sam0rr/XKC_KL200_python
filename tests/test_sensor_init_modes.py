@@ -23,7 +23,7 @@ def test_set_upload_mode_updates_state(serial_factory: FakeSerialFactory) -> Non
     assert result == XKC_KL200_Error.SUCCESS
     assert sensor.state.auto_upload_enabled is True
     assert serial_port.written_frames == [
-        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=0)
+        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=1)
     ]
 
 
@@ -46,7 +46,7 @@ def test_set_upload_mode_false_uses_manual_value(
     assert result == XKC_KL200_Error.SUCCESS
     assert sensor.state.auto_upload_enabled is False
     assert serial_port.written_frames == [
-        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=1)
+        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=0)
     ]
 
 
@@ -94,7 +94,7 @@ def test_set_upload_interval_after_enabling_auto_upload(
     assert sensor.state.auto_upload_enabled is True
     assert sensor.get_last_received_distance() == 100
     assert serial_port.written_frames == [
-        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=0),
+        build_command_frame(header=0x62, command=0x34, address=0xFFFF, data_low=1),
         build_command_frame(header=0x62, command=0x35, address=0xFFFF, data_low=10),
     ]
 

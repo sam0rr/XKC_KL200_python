@@ -49,8 +49,8 @@ class XKC_KL200_Error(IntEnum):
 class UploadMode(IntEnum):
     """Sensor upload mode values."""
 
-    AUTO = 0
-    MANUAL = 1
+    MANUAL = 0
+    AUTO = 1
 
 
 class LedMode(IntEnum):
