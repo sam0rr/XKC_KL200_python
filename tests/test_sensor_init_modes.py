@@ -130,6 +130,62 @@ def test_set_upload_interval_propagates_interval_command_error(
     assert sensor.set_upload_interval(10) == XKC_KL200_Error.TIMEOUT
 
 
+def test_set_upload_interval_restores_auto_mode_after_interval_error(
+    serial_factory: FakeSerialFactory, monkeypatch: MonkeyPatch
+) -> None:
+    sensor = XKC_KL200(
+        port="/dev/ttyUSB0",
+        timeout=0.01,
+        config=None,
+        serial_factory=serial_factory,
+    )
+    sensor.state.auto_upload_enabled = True
+    mode_calls: list[bool] = []
+
+    def fake_set_upload_mode(auto_upload: bool) -> XKC_KL200_Error:
+        mode_calls.append(auto_upload)
+        sensor.state.auto_upload_enabled = auto_upload
+        return XKC_KL200_Error.SUCCESS
+
+    monkeypatch.setattr(sensor, "set_upload_mode", fake_set_upload_mode)
+    monkeypatch.setattr(
+        sensor, "_send_ack_command", lambda **kwargs: XKC_KL200_Error.TIMEOUT
+    )
+
+    assert sensor.set_upload_interval(10) == XKC_KL200_Error.TIMEOUT
+    assert sensor.state.auto_upload_enabled is True
+    assert mode_calls == [False, True]
+
+
+def test_set_upload_interval_returns_restore_error_after_interval_error(
+    serial_factory: FakeSerialFactory, monkeypatch: MonkeyPatch
+) -> None:
+    sensor = XKC_KL200(
+        port="/dev/ttyUSB0",
+        timeout=0.01,
+        config=None,
+        serial_factory=serial_factory,
+    )
+    sensor.state.auto_upload_enabled = True
+    mode_calls: list[bool] = []
+
+    def fake_set_upload_mode(auto_upload: bool) -> XKC_KL200_Error:
+        mode_calls.append(auto_upload)
+        sensor.state.auto_upload_enabled = auto_upload
+        if auto_upload:
+            return XKC_KL200_Error.RESPONSE_ERROR
+        return XKC_KL200_Error.SUCCESS
+
+    monkeypatch.setattr(sensor, "set_upload_mode", fake_set_upload_mode)
+    monkeypatch.setattr(
+        sensor, "_send_ack_command", lambda **kwargs: XKC_KL200_Error.TIMEOUT
+    )
+
+    assert sensor.set_upload_interval(10) == XKC_KL200_Error.RESPONSE_ERROR
+    assert sensor.state.auto_upload_enabled is True
+    assert mode_calls == [False, True]
+
+
 def test_invalid_led_mode_returns_invalid_parameter(
     serial_factory: FakeSerialFactory,
 ) -> None:

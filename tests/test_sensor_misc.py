@@ -223,18 +223,19 @@ def test_wait_for_response_retries_after_invalid_non_checksum_frame(
     assert sensor._wait_for_response(0x34) == XKC_KL200_Error.SUCCESS
 
 
-def test_send_ack_command_discards_pending_input_after_success(
+def test_send_ack_command_preserves_measurement_frame_after_success(
     serial_factory: FakeSerialFactory,
 ) -> None:
     sensor = make_sensor(serial_factory, timeout=0.01)
     serial_port = serial_factory.holder["serial"]
-    ack_with_trailing_bytes = (
-        build_command_frame(header=0x62, command=0x34, address=0xFFFF) + b"\xaa\xbb"
-    )
-    serial_port.queue_read(ack_with_trailing_bytes)
+    ack_with_trailing_measurement = build_command_frame(
+        header=0x62, command=0x34, address=0xFFFF
+    ) + bytes([0x62, 0x33, 0x09, 0x00, 0x01, 0x00, 0x64, 0x00, 0x3D])
+    serial_port.queue_read(ack_with_trailing_measurement)
 
     assert sensor.set_upload_mode(True) == XKC_KL200_Error.SUCCESS
-    assert serial_port.in_waiting == 0
+    assert serial_port.in_waiting == 9
+    assert sensor.read_distance(timeout=0.0) == 100
 
 
 def test_resolve_baud_rate_code_static_helper() -> None:

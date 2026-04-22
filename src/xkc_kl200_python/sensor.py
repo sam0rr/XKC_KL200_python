@@ -149,6 +149,10 @@ class XKC_KL200:
             data_low=interval,
         )
         if result != XKC_KL200_Error.SUCCESS:
+            if was_auto_enabled:
+                restore_result = self.set_upload_mode(True)
+                if restore_result != XKC_KL200_Error.SUCCESS:
+                    return restore_result
             return result
 
         if was_auto_enabled:
@@ -286,10 +290,7 @@ class XKC_KL200:
             tail=tail,
         )
         self._serial_manager.write_frame(frame)
-        result = self._wait_for_response(expected_command=command)
-        if result == XKC_KL200_Error.SUCCESS:
-            self._discard_pending_input()
-        return result
+        return self._wait_for_response(expected_command=command)
 
     def _wait_for_response(self, expected_command: int) -> XKC_KL200_Error:
         """Read and classify the next response frame for a command."""
@@ -324,12 +325,6 @@ class XKC_KL200:
 
             self._state.address = parsed.address
             return XKC_KL200_Error.SUCCESS
-
-    def _discard_pending_input(self) -> None:
-        """Drop any buffered bytes before or after command acknowledgements."""
-        pending = self._serial_manager.bytes_available
-        if pending > 0:
-            self._serial_manager.discard(pending)
 
     @staticmethod
     def _resolve_baud_rate_code(baud_rate: int) -> int | None:
