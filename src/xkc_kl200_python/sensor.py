@@ -230,22 +230,26 @@ class XKC_KL200:
         """Consume one automatic-upload frame if a complete frame is buffered."""
         if not self._state.auto_upload_enabled:
             return False
-        if self._serial_manager.bytes_available < FRAME_LENGTH:
-            return False
 
-        response = self._serial_manager.read_exact(FRAME_LENGTH, timeout=0.0)
-        if response is None:
-            return False
+        while self._serial_manager.bytes_available >= FRAME_LENGTH:
+            frame = self._serial_manager.peek(FRAME_LENGTH)
+            if len(frame) < FRAME_LENGTH:
+                return False
 
-        try:
-            address, distance_mm = parse_measurement_frame(response)
-        except ValueError:
-            if self._serial_manager.bytes_available > 0:
+            if not frame or frame[0] not in (COMMAND_HEADER, SYSTEM_HEADER):
                 self._serial_manager.discard(1)
-            return False
+                continue
 
-        self._state.mark_measurement(distance_mm, address)
-        return True
+            try:
+                address, distance_mm = parse_measurement_frame(frame)
+                self._serial_manager.discard(FRAME_LENGTH)
+                self._state.mark_measurement(distance_mm, address)
+                return True
+            except ValueError:
+                self._serial_manager.discard(1)
+                continue
+
+        return False
 
     def get_distance(self) -> int:
         """Return the latest distance and clear the available flag."""
@@ -299,9 +303,18 @@ class XKC_KL200:
 
         while True:
             remaining = max(0.0, deadline - time.monotonic())
-            response = self._serial_manager.read_exact(FRAME_LENGTH, remaining)
-            if response is None:
-                return last_error
+            response = self._serial_manager.peek(FRAME_LENGTH)
+
+            if len(response) < FRAME_LENGTH:
+                # Wait for more data
+                if self._serial_manager.read_exact(FRAME_LENGTH, remaining) is None:
+                    return last_error
+                # Re-peek after read_exact populated the buffer
+                response = self._serial_manager.peek(FRAME_LENGTH)
+
+            if not response or response[0] not in (COMMAND_HEADER, SYSTEM_HEADER):
+                self._serial_manager.discard(1)
+                continue
 
             try:
                 parsed = parse_frame(response)
@@ -310,9 +323,13 @@ class XKC_KL200:
                     last_error = XKC_KL200_Error.CHECKSUM_ERROR
                 else:
                     last_error = XKC_KL200_Error.RESPONSE_ERROR
+                self._serial_manager.discard(1)
                 if time.monotonic() >= deadline:
                     return last_error
                 continue
+
+            # Found a valid frame
+            self._serial_manager.discard(FRAME_LENGTH)
 
             if parsed.command != expected_command:
                 if parsed.command == READ_DISTANCE_COMMAND:

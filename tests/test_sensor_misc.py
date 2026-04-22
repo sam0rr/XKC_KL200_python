@@ -234,7 +234,7 @@ def test_send_ack_command_preserves_measurement_frame_after_success(
     serial_port.queue_read(ack_with_trailing_measurement)
 
     assert sensor.set_upload_mode(True) == XKC_KL200_Error.SUCCESS
-    assert serial_port.in_waiting == 9
+    assert sensor._serial_manager.bytes_available == 9
     assert sensor.read_distance(timeout=0.0) == 100
 
 
