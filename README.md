@@ -9,7 +9,7 @@ A simplified, typed, and testable Python library for controlling the `XKC-KL200-
 ## Key Features
 
 - Typed API for sensor control and distance reads.
-- Structured modules for config, protocol constants, serial transport, state, and utilities.
+- Straightforward request/response serial flow.
 - No hardware required for tests because the serial link is mocked.
 - `uv`, `black`, `ruff`, `mypy`, and `pytest` ready from the start.
 
@@ -47,23 +47,31 @@ Before running the library on a Pi:
 from xkc_kl200_python import XKC_KL200
 
 with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
-    sensor.set_upload_mode(False)
     distance_mm = sensor.read_distance()
     print(f"Distance: {distance_mm} mm")
 ```
 
-For continuous mode:
+If you want continuous data, loop in your own application:
 
 ```python
+import time
+
 from xkc_kl200_python import XKC_KL200
 
 with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
-    sensor.set_upload_mode(True)
-    sensor.set_upload_interval(10)
-
     while True:
         print(sensor.read_distance())
+        time.sleep(0.1)
 ```
+
+This library intentionally does not expose an upload mode.
+
+That was a deliberate design choice to keep the serial contract simple and
+reliable: one command, one response, one parsed measurement. Supporting sensor
+driven upload frames added buffer management, frame resynchronization, and
+interleaving between measurements and command acknowledgements. For repeated
+measurements, it is simpler and safer for the application to own the loop and
+call `read_distance()` each time.
 
 If you are not using the Raspberry Pi UART header and instead use a USB-to-UART adapter, replace `/dev/serial0` with the matching device such as `/dev/ttyUSB0`.
 
@@ -127,36 +135,6 @@ pip install --upgrade git+https://github.com/sam0rr/XKC_KL200_python.git
 
 - [Usage Guide](docs/usage.md)
 - [Configuration Guide](docs/configuration.md)
-
----
-
-## Project Structure
-
-```text
-.
-├── src/
-│   └── xkc_kl200_python/
-│       ├── __init__.py
-│       ├── sensor.py
-│       ├── serial_manager.py
-│       ├── sensor_state.py
-│       ├── config.py
-│       ├── constants.py
-│       ├── utils.py
-│       └── py.typed
-├── tests/
-│   ├── conftest.py
-│   ├── test_config.py
-│   ├── test_serial_manager.py
-│   ├── test_sensor_init_modes.py
-│   ├── test_sensor_reading.py
-│   └── test_utils.py
-├── docs/
-│   ├── usage.md
-│   └── configuration.md
-└── examples/
-    └── main.py
-```
 
 ---
 

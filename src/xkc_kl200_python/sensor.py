@@ -1,3 +1,5 @@
+"""High-level request/response wrapper for the XKC-KL200 UART sensor."""
+
 import time
 from typing import TypeVar
 
@@ -12,31 +14,27 @@ from .constants import (
     FRAME_LENGTH,
     LedMode,
     MAX_ADDRESS,
-    MAX_UPLOAD_INTERVAL,
     MIN_ADDRESS,
-    MIN_UPLOAD_INTERVAL,
     READ_DISTANCE_COMMAND,
     RESET_COMMAND,
     RelayMode,
     SET_COMMUNICATION_MODE_COMMAND,
     SET_LED_MODE_COMMAND,
     SET_RELAY_MODE_COMMAND,
-    SET_UPLOAD_INTERVAL_COMMAND,
-    SET_UPLOAD_MODE_COMMAND,
     SYSTEM_HEADER,
-    UploadMode,
     XKC_KL200_Error,
 )
-from .sensor_state import SensorState
 from .serial_manager import SerialFactory, SerialManager
 from .utils import build_command_frame, parse_frame, parse_measurement_frame
 
 EnumValue = TypeVar("EnumValue", bound=int)
 
 
+# Keep the public API focused on direct command/response interactions.
 class XKC_KL200:
     """High-level interface for controlling an XKC-KL200 UART sensor."""
 
+    # Build the runtime state once and open the serial transport immediately.
     def __init__(
         self,
         port: str | None = None,
@@ -53,7 +51,8 @@ class XKC_KL200:
             config = SensorConfig(port=port, baudrate=baudrate, timeout=timeout)
 
         self.config = config
-        self._state = SensorState(address=config.address)
+        self._last_received_distance_mm = 0
+        self._address = config.address
         self._serial_manager = SerialManager(
             config=config, serial_factory=serial_factory
         )
@@ -61,23 +60,28 @@ class XKC_KL200:
         if config.startup_delay_s > 0:
             time.sleep(config.startup_delay_s)
 
+    # Allow callers to use the sensor object in a context manager.
     def __enter__(self) -> "XKC_KL200":
         """Support ``with XKC_KL200(...)`` context management."""
         return self
 
+    # Always close the port when the context manager exits.
     def __exit__(self, *_: object) -> None:
         """Close the serial connection when leaving a context manager."""
         self.close()
 
-    @property
-    def state(self) -> SensorState:
-        """Expose the current cached runtime state."""
-        return self._state
-
+    # Expose an explicit manual close for non-context-manager use.
     def close(self) -> None:
         """Close the underlying serial connection."""
         self._serial_manager.close()
 
+    # Surface the most recently acknowledged or measured device address.
+    @property
+    def address(self) -> int:
+        """Return the most recently acknowledged or measured sensor address."""
+        return self._address
+
+    # Send the factory-reset command variant.
     def hard_reset(self) -> XKC_KL200_Error:
         """Request a factory reset on the sensor."""
         return self._send_ack_command(
@@ -85,6 +89,7 @@ class XKC_KL200:
             tail=0xFE,
         )
 
+    # Send the user-settings-reset command variant.
     def soft_reset(self) -> XKC_KL200_Error:
         """Request a user-settings reset on the sensor."""
         return self._send_ack_command(
@@ -92,6 +97,7 @@ class XKC_KL200:
             tail=0xFD,
         )
 
+    # Persist a new sensor address once the device acknowledges the change.
     def change_address(self, address: int) -> XKC_KL200_Error:
         """Change the sensor address if the requested value is valid."""
         if not MIN_ADDRESS <= address <= MAX_ADDRESS:
@@ -104,9 +110,10 @@ class XKC_KL200:
         )
         if result == XKC_KL200_Error.SUCCESS:
             self.config.address = address
-            self._state.address = address
+            self._address = address
         return result
 
+    # Accept either a baud-rate value or the raw protocol baud code.
     def change_baud_rate(self, baud_rate: int) -> XKC_KL200_Error:
         """Change the sensor baud rate using a baud value or protocol code."""
         baud_code = self._resolve_baud_rate_code(baud_rate)
@@ -123,42 +130,7 @@ class XKC_KL200:
             self._serial_manager.set_baudrate(new_baudrate)
         return result
 
-    def set_upload_mode(self, auto_upload: bool) -> XKC_KL200_Error:
-        """Enable or disable automatic measurement uploads."""
-        mode = UploadMode.AUTO if auto_upload else UploadMode.MANUAL
-        result = self._send_ack_command(
-            command=SET_UPLOAD_MODE_COMMAND,
-            data_low=int(mode),
-        )
-        if result == XKC_KL200_Error.SUCCESS:
-            self._state.auto_upload_enabled = auto_upload
-        return result
-
-    def set_upload_interval(self, interval: int) -> XKC_KL200_Error:
-        """Set the automatic upload interval in protocol units."""
-        if not MIN_UPLOAD_INTERVAL <= interval <= MAX_UPLOAD_INTERVAL:
-            return XKC_KL200_Error.INVALID_PARAMETER
-        was_auto_enabled = self._state.auto_upload_enabled
-        if was_auto_enabled:
-            result = self.set_upload_mode(False)
-            if result != XKC_KL200_Error.SUCCESS:
-                return result
-
-        result = self._send_ack_command(
-            command=SET_UPLOAD_INTERVAL_COMMAND,
-            data_low=interval,
-        )
-        if result != XKC_KL200_Error.SUCCESS:
-            if was_auto_enabled:
-                restore_result = self.set_upload_mode(True)
-                if restore_result != XKC_KL200_Error.SUCCESS:
-                    return restore_result
-            return result
-
-        if was_auto_enabled:
-            return self.set_upload_mode(True)
-        return XKC_KL200_Error.SUCCESS
-
+    # Validate and forward the requested LED mode.
     def set_led_mode(self, mode: int | LedMode) -> XKC_KL200_Error:
         """Configure the sensor LED behavior."""
         value = self._coerce_enum_value(mode, LedMode)
@@ -169,6 +141,7 @@ class XKC_KL200:
             data_low=value,
         )
 
+    # Validate and forward the requested relay-output mode.
     def set_relay_mode(self, mode: int | RelayMode) -> XKC_KL200_Error:
         """Configure the relay output behavior."""
         value = self._coerce_enum_value(mode, RelayMode)
@@ -179,6 +152,7 @@ class XKC_KL200:
             data_low=value,
         )
 
+    # Validate and forward the overall communication operating mode.
     def set_communication_mode(self, mode: int | CommunicationMode) -> XKC_KL200_Error:
         """Switch the device between relay mode and UART mode."""
         value = self._coerce_enum_value(mode, CommunicationMode)
@@ -190,11 +164,9 @@ class XKC_KL200:
             data_low=value,
         )
 
+    # Request one fresh measurement frame and cache the successful result.
     def read_distance(self, timeout: float | None = None) -> int:
-        """Read the latest distance in manual or automatic-upload mode."""
-        if self._state.auto_upload_enabled:
-            return self._read_auto_distance(timeout)
-
+        """Request one distance measurement and return the latest known value."""
         self._serial_manager.write_frame(
             build_command_frame(
                 header=COMMAND_HEADER,
@@ -207,74 +179,24 @@ class XKC_KL200:
             FRAME_LENGTH, self.config.timeout if timeout is None else timeout
         )
         if response is None:
-            return self._state.last_received_distance_mm
+            return self._last_received_distance_mm
 
         try:
             address, distance_mm = parse_measurement_frame(response)
         except ValueError:
-            return self._state.last_received_distance_mm
+            return self._last_received_distance_mm
 
-        self._state.mark_measurement(distance_mm, address)
+        self._last_received_distance_mm = distance_mm
+        self._address = address
         return distance_mm
 
-    def available(self) -> bool:
-        """Return True when a fresh measurement is ready to be consumed."""
-        if (
-            self._state.auto_upload_enabled
-            and self._serial_manager.bytes_available >= FRAME_LENGTH
-        ):
-            return True
-        return self._state.available
+    # Expose the last successful measurement without triggering new I/O.
+    @property
+    def last_received_distance(self) -> int:
+        """Return the latest received distance."""
+        return self._last_received_distance_mm
 
-    def process_auto_data(self) -> bool:
-        """Consume one automatic-upload frame if a complete frame is buffered."""
-        if not self._state.auto_upload_enabled:
-            return False
-
-        while self._serial_manager.bytes_available >= FRAME_LENGTH:
-            frame = self._serial_manager.peek(FRAME_LENGTH)
-            if len(frame) < FRAME_LENGTH:
-                return False
-
-            if not frame or frame[0] not in (COMMAND_HEADER, SYSTEM_HEADER):
-                self._serial_manager.discard(1)
-                continue
-
-            try:
-                address, distance_mm = parse_measurement_frame(frame)
-                self._serial_manager.discard(FRAME_LENGTH)
-                self._state.mark_measurement(distance_mm, address)
-                return True
-            except ValueError:
-                self._serial_manager.discard(1)
-                continue
-
-        return False
-
-    def get_distance(self) -> int:
-        """Return the latest distance and clear the available flag."""
-        return self._state.consume_distance()
-
-    def get_last_received_distance(self) -> int:
-        """Return the latest received distance without changing state flags."""
-        return self._state.last_received_distance_mm
-
-    def _read_auto_distance(self, timeout: float | None) -> int:
-        """Drain or wait for uploaded measurements and return the latest value."""
-        deadline = time.monotonic() + (
-            self.config.timeout if timeout is None else timeout
-        )
-
-        while True:
-            received = False
-            while self.process_auto_data():
-                received = True
-
-            if received or time.monotonic() >= deadline:
-                return self._state.last_received_distance_mm
-
-            time.sleep(0.001)
-
+    # Build and send a command frame, then wait for its acknowledgement.
     def _send_ack_command(
         self,
         *,
@@ -296,53 +218,24 @@ class XKC_KL200:
         self._serial_manager.write_frame(frame)
         return self._wait_for_response(expected_command=command)
 
+    # Parse the next response frame as an acknowledgement for one command.
     def _wait_for_response(self, expected_command: int) -> XKC_KL200_Error:
-        """Read and classify the next response frame for a command."""
-        deadline = time.monotonic() + self.config.timeout
-        last_error = XKC_KL200_Error.TIMEOUT
+        """Read and classify the acknowledgement for a configuration command."""
+        response = self._serial_manager.read_exact(FRAME_LENGTH, self.config.timeout)
+        if response is None:
+            return XKC_KL200_Error.TIMEOUT
 
-        while True:
-            remaining = max(0.0, deadline - time.monotonic())
-            response = self._serial_manager.peek(FRAME_LENGTH)
+        try:
+            parsed = parse_frame(response, expected_command=expected_command)
+        except ValueError as exc:
+            if "checksum" in str(exc).lower():
+                return XKC_KL200_Error.CHECKSUM_ERROR
+            return XKC_KL200_Error.RESPONSE_ERROR
 
-            if len(response) < FRAME_LENGTH:
-                # Wait for more data
-                if self._serial_manager.read_exact(FRAME_LENGTH, remaining) is None:
-                    return last_error
-                # Re-peek after read_exact populated the buffer
-                response = self._serial_manager.peek(FRAME_LENGTH)
+        self._address = parsed.address
+        return XKC_KL200_Error.SUCCESS
 
-            if not response or response[0] not in (COMMAND_HEADER, SYSTEM_HEADER):
-                self._serial_manager.discard(1)
-                continue
-
-            try:
-                parsed = parse_frame(response)
-            except ValueError as exc:
-                if "checksum" in str(exc).lower():
-                    last_error = XKC_KL200_Error.CHECKSUM_ERROR
-                else:
-                    last_error = XKC_KL200_Error.RESPONSE_ERROR
-                self._serial_manager.discard(1)
-                if time.monotonic() >= deadline:
-                    return last_error
-                continue
-
-            # Found a valid frame
-            self._serial_manager.discard(FRAME_LENGTH)
-
-            if parsed.command != expected_command:
-                if parsed.command == READ_DISTANCE_COMMAND:
-                    distance_mm = (parsed.data_high << 8) | parsed.data_low
-                    self._state.mark_measurement(distance_mm, parsed.address)
-                last_error = XKC_KL200_Error.RESPONSE_ERROR
-                if time.monotonic() >= deadline:
-                    return last_error
-                continue
-
-            self._state.address = parsed.address
-            return XKC_KL200_Error.SUCCESS
-
+    # Normalize user-facing baud-rate inputs into the protocol code space.
     @staticmethod
     def _resolve_baud_rate_code(baud_rate: int) -> int | None:
         """Normalize a baud rate value or code into a protocol baud code."""
@@ -352,6 +245,7 @@ class XKC_KL200:
             return baud_rate
         return None
 
+    # Reuse one small validator for the different command enums.
     @staticmethod
     def _coerce_enum_value(
         value: int | EnumValue, enum_type: type[EnumValue]

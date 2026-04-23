@@ -1,3 +1,5 @@
+"""Transport-level tests for the simplified serial manager."""
+
 from conftest import FakeSerial, FakeSerialFactory
 from pytest import MonkeyPatch
 
@@ -5,6 +7,7 @@ from xkc_kl200_python.config import SensorConfig
 from xkc_kl200_python.serial_manager import SerialManager, default_serial_factory
 
 
+# Verify that frame writes pass straight through to the serial backend.
 def test_write_frame(serial_factory: FakeSerialFactory) -> None:
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
@@ -17,6 +20,7 @@ def test_write_frame(serial_factory: FakeSerialFactory) -> None:
     assert serial_port.written_frames == [b"\x01\x02"]
 
 
+# Verify that read_exact assembles a full frame from multiple chunks.
 def test_read_exact_success(serial_factory: FakeSerialFactory) -> None:
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
@@ -31,6 +35,7 @@ def test_read_exact_success(serial_factory: FakeSerialFactory) -> None:
     assert result == b"\x01\x02\x03"
 
 
+# Verify that read_exact reports timeout cleanly when nothing arrives.
 def test_read_exact_timeout(serial_factory: FakeSerialFactory) -> None:
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
@@ -42,6 +47,7 @@ def test_read_exact_timeout(serial_factory: FakeSerialFactory) -> None:
     assert result is None
 
 
+# Verify that the default serial factory wires through to pyserial.
 def test_default_serial_factory_uses_serial_module(monkeypatch: MonkeyPatch) -> None:
     fake_serial = FakeSerial(port="/dev/null", baudrate=9600, timeout=1.0)
 
@@ -60,23 +66,21 @@ def test_default_serial_factory_uses_serial_module(monkeypatch: MonkeyPatch) -> 
     assert result is fake_serial
 
 
-def test_close_discard_and_is_open(serial_factory: FakeSerialFactory) -> None:
+# Verify that open-state reporting follows the underlying port lifecycle.
+def test_close_and_is_open(serial_factory: FakeSerialFactory) -> None:
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
     )
-    serial_port = serial_factory.holder["serial"]
-    serial_port.queue_read(b"\xaa\xbb\xcc")
 
     assert manager.is_open is True
-    manager.discard(2)
-    assert serial_port.in_waiting == 1
 
     manager.close()
 
     assert manager.is_open is False
 
 
+# Verify that the timeout loop sleeps briefly before giving up.
 def test_read_exact_sleeps_before_timeout(
     serial_factory: FakeSerialFactory, monkeypatch: MonkeyPatch
 ) -> None:

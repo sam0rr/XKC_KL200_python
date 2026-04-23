@@ -1,5 +1,7 @@
 # Usage Guide
 
+---
+
 ## Basic Initialization
 
 ```python
@@ -24,39 +26,41 @@ Before using the library on a Pi:
 - verify the sensor UART electrical level is compatible with the Pi `3.3V` UART
 - wire `TX -> RX`, `RX -> TX`, and `GND -> GND`
 
+---
+
 ## Manual Distance Read
 
 ```python
 from xkc_kl200_python import XKC_KL200
 
 with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
-    sensor.set_upload_mode(False)
     print(sensor.read_distance())
 ```
 
-## Automatic Upload Mode
+---
+
+## Looping In Your App
 
 ```python
+import time
+
 from xkc_kl200_python import XKC_KL200
 
 with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
-    sensor.set_upload_mode(True)
-    sensor.set_upload_interval(5)
-
     while True:
         print(sensor.read_distance())
+        time.sleep(0.1)
 ```
 
-`read_distance()` works in both modes:
+`read_distance()` always sends a measurement request and waits for the matching
+response frame. If you want repeated readings, keep the loop in your own code.
 
-- In manual mode, it requests a fresh measurement.
-- In auto mode, it drains any queued upload frames and waits briefly for the next frame.
+This library intentionally does not expose an upload mode. The goal is to keep
+the UART contract predictable and easy to debug: one command, one response, one
+parsed measurement. Repeated reads stay in application code rather than inside
+the library.
 
-`set_upload_interval()` still uses protocol units:
-
-- `1` = `100 ms`
-- `5` = `500 ms`
-- `10` = `1.0 s`
+---
 
 ## Configuration Commands
 
@@ -64,10 +68,10 @@ The library exposes helpers for:
 
 - `change_address`
 - `change_baud_rate`
-- `set_upload_mode`
-- `set_upload_interval`
 - `set_led_mode`
 - `set_relay_mode`
 - `set_communication_mode`
 - `hard_reset`
 - `soft_reset`
+
+---

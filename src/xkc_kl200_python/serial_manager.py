@@ -1,3 +1,5 @@
+"""Small serial transport wrapper used by the sensor implementation."""
+
 import time
 from typing import Callable, Protocol, cast
 
@@ -27,6 +29,7 @@ class SerialPort(Protocol):
 SerialFactory = Callable[[str, int, float], SerialPort]
 
 
+# Create the default pyserial-backed port for production use.
 def default_serial_factory(port: str, baudrate: int, timeout: float) -> SerialPort:
     """Create the default pyserial-backed serial connection."""
     return cast(
@@ -35,9 +38,11 @@ def default_serial_factory(port: str, baudrate: int, timeout: float) -> SerialPo
     )
 
 
+# Keep transport details separate from the higher-level sensor protocol code.
 class SerialManager:
     """Thin wrapper around the serial transport used by the sensor."""
 
+    # Open the underlying serial port with the validated connection settings.
     def __init__(
         self,
         config: SensorConfig,
@@ -46,60 +51,43 @@ class SerialManager:
         """Open the serial connection using the configured parameters."""
         factory = serial_factory or default_serial_factory
         self._serial = factory(config.port, config.baudrate, config.timeout)
-        self._buffer = bytearray()
 
-    @property
-    def bytes_available(self) -> int:
-        """Return the number of bytes currently buffered by the port and local buffer."""
-        return int(self._serial.in_waiting) + len(self._buffer)
-
+    # Expose whether the underlying port still considers itself open.
     @property
     def is_open(self) -> bool:
         """Return True when the serial port is still open."""
         return bool(self._serial.is_open)
 
+    # Close the port idempotently so callers can clean up safely.
     def close(self) -> None:
         """Close the serial port if it is open."""
         if self._serial.is_open:
             self._serial.close()
 
+    # Update the live port baud rate after a successful protocol change.
     def set_baudrate(self, baudrate: int) -> None:
         """Update the serial port baud rate in place."""
         self._serial.baudrate = baudrate
 
+    # Send one whole protocol frame and flush it immediately.
     def write_frame(self, frame: bytes) -> None:
         """Write a full protocol frame and flush it immediately."""
         self._serial.write(frame)
         self._serial.flush()
 
-    def discard(self, count: int) -> None:
-        """Discard up to ``count`` bytes from the serial buffer."""
-        if count <= 0:
-            return
-
-        # First discard from local buffer
-        from_buffer = min(count, len(self._buffer))
-        if from_buffer > 0:
-            del self._buffer[:from_buffer]
-            count -= from_buffer
-
-        # Then from serial port
-        if count > 0:
-            self._serial.read(count)
-
+    # Read exactly the requested byte count without keeping hidden buffer state.
     def read_exact(self, size: int, timeout: float) -> bytes | None:
         """Read exactly ``size`` bytes or return ``None`` on timeout."""
         deadline = time.monotonic() + timeout
+        buffer = bytearray()
 
-        while len(self._buffer) < size:
-            remaining = size - len(self._buffer)
+        while len(buffer) < size:
+            remaining = size - len(buffer)
             waiting = int(self._serial.in_waiting)
-            chunk_size = max(remaining, waiting)
+            chunk_size = remaining if waiting == 0 else min(remaining, waiting)
             chunk = self._serial.read(chunk_size)
             if chunk:
-                self._buffer.extend(chunk)
-                if len(self._buffer) >= size:
-                    break
+                buffer.extend(chunk)
                 continue
 
             if time.monotonic() >= deadline:
@@ -107,15 +95,4 @@ class SerialManager:
 
             time.sleep(0.001)
 
-        result = bytes(self._buffer[:size])
-        del self._buffer[:size]
-        return result
-
-    def peek(self, size: int) -> bytes:
-        """Return up to ``size`` bytes from the buffer without consuming them."""
-        waiting = int(self._serial.in_waiting)
-        if waiting > 0:
-            chunk = self._serial.read(waiting)
-            if chunk:
-                self._buffer.extend(chunk)
-        return bytes(self._buffer[:size])
+        return bytes(buffer)
