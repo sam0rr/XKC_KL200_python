@@ -138,35 +138,6 @@ pip install --upgrade git+https://github.com/sam0rr/XKC_KL200_python.git
 
 ---
 
-## Project Structure
-
-```text
-.
-├── src/
-│   └── xkc_kl200_python/
-│       ├── __init__.py
-│       ├── sensor.py
-│       ├── serial_manager.py
-│       ├── config.py
-│       ├── constants.py
-│       ├── utils.py
-│       └── py.typed
-├── tests/
-│   ├── conftest.py
-│   ├── test_config.py
-│   ├── test_serial_manager.py
-│   ├── test_sensor_init_modes.py
-│   ├── test_sensor_reading.py
-│   └── test_utils.py
-├── docs/
-│   ├── usage.md
-│   └── configuration.md
-└── examples/
-    └── main.py
-```
-
----
-
 ## Development
 
 To contribute to this library:
