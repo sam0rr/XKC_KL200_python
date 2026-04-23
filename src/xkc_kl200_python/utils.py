@@ -1,9 +1,17 @@
+"""Protocol frame helpers shared by commands, parsing, and tests."""
+
 from dataclasses import dataclass
 from typing import Sequence
 
-from .constants import COMMAND_HEADER, FRAME_LENGTH, SYSTEM_HEADER
+from .constants import (
+    COMMAND_HEADER,
+    FRAME_LENGTH,
+    READ_DISTANCE_COMMAND,
+    SYSTEM_HEADER,
+)
 
 
+# Represent a validated frame in a structured form once parsing succeeds.
 @dataclass(frozen=True)
 class ProtocolFrame:
     """Decoded view of a raw 9-byte XKC-KL200 protocol frame."""
@@ -17,6 +25,7 @@ class ProtocolFrame:
     tail: int
 
 
+# Match the device protocol checksum rule used across all frames.
 def calculate_checksum(data: Sequence[int]) -> int:
     """Compute the protocol XOR checksum for a byte sequence."""
     checksum = 0
@@ -25,6 +34,7 @@ def calculate_checksum(data: Sequence[int]) -> int:
     return checksum
 
 
+# Build outbound command frames in one place so tests and runtime stay aligned.
 def build_command_frame(
     *,
     header: int,
@@ -52,6 +62,7 @@ def build_command_frame(
     return bytes(frame)
 
 
+# Validate a raw frame before higher-level code interprets its contents.
 def parse_frame(frame: bytes, *, expected_command: int | None = None) -> ProtocolFrame:
     """Validate and decode a raw protocol frame."""
     if len(frame) != FRAME_LENGTH:
@@ -80,8 +91,9 @@ def parse_frame(frame: bytes, *, expected_command: int | None = None) -> Protoco
     )
 
 
+# Decode the standard measurement-response frame into address and millimeters.
 def parse_measurement_frame(frame: bytes) -> tuple[int, int]:
     """Decode a distance measurement frame into address and millimeters."""
-    parsed = parse_frame(frame, expected_command=0x33)
+    parsed = parse_frame(frame, expected_command=READ_DISTANCE_COMMAND)
     distance_mm = (parsed.data_high << 8) | parsed.data_low
     return parsed.address, distance_mm

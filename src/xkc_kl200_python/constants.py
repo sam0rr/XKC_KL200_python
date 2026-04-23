@@ -1,10 +1,14 @@
+"""Protocol constants and small enums for the XKC-KL200 UART interface."""
+
 from enum import IntEnum
 
+# Fixed frame layout values shared by command and measurement packets.
 FRAME_LENGTH = 9
 COMMAND_HEADER = 0x62
 SYSTEM_HEADER = 0x61
 DEFAULT_SENSOR_ADDRESS = 0xFFFF
 
+# Command identifiers used by the device protocol.
 READ_DISTANCE_COMMAND = 0x33
 CHANGE_BAUD_RATE_COMMAND = 0x30
 CHANGE_ADDRESS_COMMAND = 0x32
@@ -16,6 +20,7 @@ SET_COMMUNICATION_MODE_COMMAND = 0x30
 MIN_ADDRESS = 0x0000
 MAX_ADDRESS = 0xFFFE
 
+# Supported baud-rate mappings between user values and protocol codes.
 BAUD_RATE_TO_CODE = {
     2400: 0,
     4800: 1,
@@ -32,6 +37,7 @@ BAUD_RATE_TO_CODE = {
 CODE_TO_BAUD_RATE = {code: baudrate for baudrate, code in BAUD_RATE_TO_CODE.items()}
 
 
+# Report high-level command outcomes through a small stable enum.
 class XKC_KL200_Error(IntEnum):
     """Protocol-level status codes returned by the library API."""
 
@@ -42,6 +48,7 @@ class XKC_KL200_Error(IntEnum):
     RESPONSE_ERROR = 4
 
 
+# Control the visible LED behavior on the sensor body.
 class LedMode(IntEnum):
     """Supported LED behavior modes."""
 
@@ -51,6 +58,7 @@ class LedMode(IntEnum):
     ALWAYS_ON = 3
 
 
+# Control how the relay output polarity reacts to detection events.
 class RelayMode(IntEnum):
     """Supported relay output modes."""
 
@@ -58,6 +66,7 @@ class RelayMode(IntEnum):
     INACTIVE_WHEN_DETECTED = 1
 
 
+# Switch the overall operating interface between relay and UART behavior.
 class CommunicationMode(IntEnum):
     """High-level communication operating modes."""
 

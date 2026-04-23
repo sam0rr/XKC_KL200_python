@@ -1,3 +1,5 @@
+"""Measurement-read tests for the simplified request/response sensor API."""
+
 from conftest import FakeSerialFactory
 
 from xkc_kl200_python import XKC_KL200
@@ -5,6 +7,7 @@ from xkc_kl200_python.constants import XKC_KL200_Error
 from xkc_kl200_python.utils import build_command_frame
 
 
+# Verify that a valid measurement updates the cached value and address.
 def test_read_distance_updates_state(serial_factory: FakeSerialFactory) -> None:
     sensor = XKC_KL200(port="/dev/ttyUSB0", timeout=0.01, serial_factory=serial_factory)
     serial_port = serial_factory.holder["serial"]
@@ -22,6 +25,7 @@ def test_read_distance_updates_state(serial_factory: FakeSerialFactory) -> None:
     ]
 
 
+# Verify that timeouts preserve the previous successful measurement.
 def test_read_distance_timeout_returns_last_distance(
     serial_factory: FakeSerialFactory,
 ) -> None:
@@ -31,6 +35,7 @@ def test_read_distance_timeout_returns_last_distance(
     assert sensor.read_distance(timeout=0.0) == 123
 
 
+# Verify that malformed frames also fall back to the last good value.
 def test_read_distance_invalid_frame_returns_last_distance(
     serial_factory: FakeSerialFactory,
 ) -> None:
@@ -44,6 +49,7 @@ def test_read_distance_invalid_frame_returns_last_distance(
     assert sensor.read_distance() == 55
 
 
+# Verify that change_baud_rate accepts human-readable baud values.
 def test_change_baud_rate_accepts_real_baudrate(
     serial_factory: FakeSerialFactory,
 ) -> None:
