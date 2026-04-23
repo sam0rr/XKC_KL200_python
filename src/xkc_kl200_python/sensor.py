@@ -12,22 +12,16 @@ from .constants import (
     FRAME_LENGTH,
     LedMode,
     MAX_ADDRESS,
-    MAX_UPLOAD_INTERVAL,
     MIN_ADDRESS,
-    MIN_UPLOAD_INTERVAL,
     READ_DISTANCE_COMMAND,
     RESET_COMMAND,
     RelayMode,
     SET_COMMUNICATION_MODE_COMMAND,
     SET_LED_MODE_COMMAND,
     SET_RELAY_MODE_COMMAND,
-    SET_UPLOAD_INTERVAL_COMMAND,
-    SET_UPLOAD_MODE_COMMAND,
     SYSTEM_HEADER,
-    UploadMode,
     XKC_KL200_Error,
 )
-from .sensor_state import SensorState
 from .serial_manager import SerialFactory, SerialManager
 from .utils import build_command_frame, parse_frame, parse_measurement_frame
 
@@ -53,7 +47,8 @@ class XKC_KL200:
             config = SensorConfig(port=port, baudrate=baudrate, timeout=timeout)
 
         self.config = config
-        self._state = SensorState(address=config.address)
+        self._last_received_distance_mm = 0
+        self._address = config.address
         self._serial_manager = SerialManager(
             config=config, serial_factory=serial_factory
         )
@@ -69,14 +64,14 @@ class XKC_KL200:
         """Close the serial connection when leaving a context manager."""
         self.close()
 
-    @property
-    def state(self) -> SensorState:
-        """Expose the current cached runtime state."""
-        return self._state
-
     def close(self) -> None:
         """Close the underlying serial connection."""
         self._serial_manager.close()
+
+    @property
+    def address(self) -> int:
+        """Return the most recently acknowledged or measured sensor address."""
+        return self._address
 
     def hard_reset(self) -> XKC_KL200_Error:
         """Request a factory reset on the sensor."""
@@ -104,7 +99,7 @@ class XKC_KL200:
         )
         if result == XKC_KL200_Error.SUCCESS:
             self.config.address = address
-            self._state.address = address
+            self._address = address
         return result
 
     def change_baud_rate(self, baud_rate: int) -> XKC_KL200_Error:
@@ -122,42 +117,6 @@ class XKC_KL200:
             self.config.baudrate = new_baudrate
             self._serial_manager.set_baudrate(new_baudrate)
         return result
-
-    def set_upload_mode(self, auto_upload: bool) -> XKC_KL200_Error:
-        """Enable or disable automatic measurement uploads."""
-        mode = UploadMode.AUTO if auto_upload else UploadMode.MANUAL
-        result = self._send_ack_command(
-            command=SET_UPLOAD_MODE_COMMAND,
-            data_low=int(mode),
-        )
-        if result == XKC_KL200_Error.SUCCESS:
-            self._state.auto_upload_enabled = auto_upload
-        return result
-
-    def set_upload_interval(self, interval: int) -> XKC_KL200_Error:
-        """Set the automatic upload interval in protocol units."""
-        if not MIN_UPLOAD_INTERVAL <= interval <= MAX_UPLOAD_INTERVAL:
-            return XKC_KL200_Error.INVALID_PARAMETER
-        was_auto_enabled = self._state.auto_upload_enabled
-        if was_auto_enabled:
-            result = self.set_upload_mode(False)
-            if result != XKC_KL200_Error.SUCCESS:
-                return result
-
-        result = self._send_ack_command(
-            command=SET_UPLOAD_INTERVAL_COMMAND,
-            data_low=interval,
-        )
-        if result != XKC_KL200_Error.SUCCESS:
-            if was_auto_enabled:
-                restore_result = self.set_upload_mode(True)
-                if restore_result != XKC_KL200_Error.SUCCESS:
-                    return restore_result
-            return result
-
-        if was_auto_enabled:
-            return self.set_upload_mode(True)
-        return XKC_KL200_Error.SUCCESS
 
     def set_led_mode(self, mode: int | LedMode) -> XKC_KL200_Error:
         """Configure the sensor LED behavior."""
@@ -191,10 +150,7 @@ class XKC_KL200:
         )
 
     def read_distance(self, timeout: float | None = None) -> int:
-        """Read the latest distance in manual or automatic-upload mode."""
-        if self._state.auto_upload_enabled:
-            return self._read_auto_distance(timeout)
-
+        """Request one distance measurement and return the latest known value."""
         self._serial_manager.write_frame(
             build_command_frame(
                 header=COMMAND_HEADER,
@@ -207,73 +163,21 @@ class XKC_KL200:
             FRAME_LENGTH, self.config.timeout if timeout is None else timeout
         )
         if response is None:
-            return self._state.last_received_distance_mm
+            return self._last_received_distance_mm
 
         try:
             address, distance_mm = parse_measurement_frame(response)
         except ValueError:
-            return self._state.last_received_distance_mm
+            return self._last_received_distance_mm
 
-        self._state.mark_measurement(distance_mm, address)
+        self._last_received_distance_mm = distance_mm
+        self._address = address
         return distance_mm
 
-    def available(self) -> bool:
-        """Return True when a fresh measurement is ready to be consumed."""
-        if (
-            self._state.auto_upload_enabled
-            and self._serial_manager.bytes_available >= FRAME_LENGTH
-        ):
-            return True
-        return self._state.available
-
-    def process_auto_data(self) -> bool:
-        """Consume one automatic-upload frame if a complete frame is buffered."""
-        if not self._state.auto_upload_enabled:
-            return False
-
-        while self._serial_manager.bytes_available >= FRAME_LENGTH:
-            frame = self._serial_manager.peek(FRAME_LENGTH)
-            if len(frame) < FRAME_LENGTH:
-                return False
-
-            if not frame or frame[0] not in (COMMAND_HEADER, SYSTEM_HEADER):
-                self._serial_manager.discard(1)
-                continue
-
-            try:
-                address, distance_mm = parse_measurement_frame(frame)
-                self._serial_manager.discard(FRAME_LENGTH)
-                self._state.mark_measurement(distance_mm, address)
-                return True
-            except ValueError:
-                self._serial_manager.discard(1)
-                continue
-
-        return False
-
-    def get_distance(self) -> int:
-        """Return the latest distance and clear the available flag."""
-        return self._state.consume_distance()
-
-    def get_last_received_distance(self) -> int:
-        """Return the latest received distance without changing state flags."""
-        return self._state.last_received_distance_mm
-
-    def _read_auto_distance(self, timeout: float | None) -> int:
-        """Drain or wait for uploaded measurements and return the latest value."""
-        deadline = time.monotonic() + (
-            self.config.timeout if timeout is None else timeout
-        )
-
-        while True:
-            received = False
-            while self.process_auto_data():
-                received = True
-
-            if received or time.monotonic() >= deadline:
-                return self._state.last_received_distance_mm
-
-            time.sleep(0.001)
+    @property
+    def last_received_distance(self) -> int:
+        """Return the latest received distance."""
+        return self._last_received_distance_mm
 
     def _send_ack_command(
         self,
@@ -297,51 +201,20 @@ class XKC_KL200:
         return self._wait_for_response(expected_command=command)
 
     def _wait_for_response(self, expected_command: int) -> XKC_KL200_Error:
-        """Read and classify the next response frame for a command."""
-        deadline = time.monotonic() + self.config.timeout
-        last_error = XKC_KL200_Error.TIMEOUT
+        """Read and classify the acknowledgement for a configuration command."""
+        response = self._serial_manager.read_exact(FRAME_LENGTH, self.config.timeout)
+        if response is None:
+            return XKC_KL200_Error.TIMEOUT
 
-        while True:
-            remaining = max(0.0, deadline - time.monotonic())
-            response = self._serial_manager.peek(FRAME_LENGTH)
+        try:
+            parsed = parse_frame(response, expected_command=expected_command)
+        except ValueError as exc:
+            if "checksum" in str(exc).lower():
+                return XKC_KL200_Error.CHECKSUM_ERROR
+            return XKC_KL200_Error.RESPONSE_ERROR
 
-            if len(response) < FRAME_LENGTH:
-                # Wait for more data
-                if self._serial_manager.read_exact(FRAME_LENGTH, remaining) is None:
-                    return last_error
-                # Re-peek after read_exact populated the buffer
-                response = self._serial_manager.peek(FRAME_LENGTH)
-
-            if not response or response[0] not in (COMMAND_HEADER, SYSTEM_HEADER):
-                self._serial_manager.discard(1)
-                continue
-
-            try:
-                parsed = parse_frame(response)
-            except ValueError as exc:
-                if "checksum" in str(exc).lower():
-                    last_error = XKC_KL200_Error.CHECKSUM_ERROR
-                else:
-                    last_error = XKC_KL200_Error.RESPONSE_ERROR
-                self._serial_manager.discard(1)
-                if time.monotonic() >= deadline:
-                    return last_error
-                continue
-
-            # Found a valid frame
-            self._serial_manager.discard(FRAME_LENGTH)
-
-            if parsed.command != expected_command:
-                if parsed.command == READ_DISTANCE_COMMAND:
-                    distance_mm = (parsed.data_high << 8) | parsed.data_low
-                    self._state.mark_measurement(distance_mm, parsed.address)
-                last_error = XKC_KL200_Error.RESPONSE_ERROR
-                if time.monotonic() >= deadline:
-                    return last_error
-                continue
-
-            self._state.address = parsed.address
-            return XKC_KL200_Error.SUCCESS
+        self._address = parsed.address
+        return XKC_KL200_Error.SUCCESS
 
     @staticmethod
     def _resolve_baud_rate_code(baud_rate: int) -> int | None:

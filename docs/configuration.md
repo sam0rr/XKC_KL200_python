@@ -45,7 +45,6 @@ The protocol exposes the following baud rates:
 
 - `address=0xFFFF` is the default broadcast-style device address used by the original sensor examples.
 - `change_address` only accepts values from `0x0000` to `0xFFFE`.
-- `set_upload_interval` accepts values from `1` to `100`.
 
 ---
 

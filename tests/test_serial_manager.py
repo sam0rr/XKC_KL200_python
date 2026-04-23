@@ -65,12 +65,8 @@ def test_close_discard_and_is_open(serial_factory: FakeSerialFactory) -> None:
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
     )
-    serial_port = serial_factory.holder["serial"]
-    serial_port.queue_read(b"\xaa\xbb\xcc")
 
     assert manager.is_open is True
-    manager.discard(2)
-    assert serial_port.in_waiting == 1
 
     manager.close()
 
