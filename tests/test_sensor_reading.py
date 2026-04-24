@@ -1,9 +1,14 @@
 """Measurement-read tests for the simplified request/response sensor API."""
 
 from conftest import FakeSerialFactory
+import pytest
 
-from xkc_kl200_python import XKC_KL200
-from xkc_kl200_python.constants import XKC_KL200_Error
+from xkc_kl200_python import (
+    XKC_KL200,
+    XKC_KL200_ResponseError,
+    XKC_KL200_TimeoutError,
+)
+from xkc_kl200_python.constants import XKC_KL200_Status
 from xkc_kl200_python.utils import build_command_frame
 
 
@@ -25,17 +30,20 @@ def test_read_distance_updates_state(serial_factory: FakeSerialFactory) -> None:
     ]
 
 
-# Verify that timeouts preserve the previous successful measurement.
+# Verify that timeouts fail explicitly instead of returning cached data.
 def test_read_distance_timeout_returns_last_distance(
     serial_factory: FakeSerialFactory,
 ) -> None:
     sensor = XKC_KL200(port="/dev/ttyUSB0", timeout=0.0, serial_factory=serial_factory)
     sensor._last_received_distance_mm = 123
 
-    assert sensor.read_distance(timeout=0.0) == 123
+    with pytest.raises(XKC_KL200_TimeoutError):
+        sensor.read_distance(timeout=0.0)
+
+    assert sensor.last_received_distance == 123
 
 
-# Verify that malformed frames also fall back to the last good value.
+# Verify that malformed frames fail explicitly and preserve the last good value.
 def test_read_distance_invalid_frame_returns_last_distance(
     serial_factory: FakeSerialFactory,
 ) -> None:
@@ -46,7 +54,10 @@ def test_read_distance_invalid_frame_returns_last_distance(
         bytes([0x60, 0x33, 0x09, 0xFF, 0xFF, 0x00, 0x64, 0x00, 0x04])
     )
 
-    assert sensor.read_distance() == 55
+    with pytest.raises(XKC_KL200_ResponseError):
+        sensor.read_distance()
+
+    assert sensor.last_received_distance == 55
 
 
 # Verify that change_baud_rate accepts human-readable baud values.
@@ -61,6 +72,6 @@ def test_change_baud_rate_accepts_real_baudrate(
 
     result = sensor.change_baud_rate(115200)
 
-    assert result == XKC_KL200_Error.SUCCESS
+    assert result == XKC_KL200_Status.SUCCESS
     assert sensor.config.baudrate == 115200
     assert serial_port.baudrate == 115200

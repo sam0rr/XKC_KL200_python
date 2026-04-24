@@ -3,7 +3,7 @@
 from conftest import FakeSerialFactory
 
 from xkc_kl200_python import CommunicationMode, LedMode, RelayMode, XKC_KL200
-from xkc_kl200_python.constants import XKC_KL200_Error
+from xkc_kl200_python.constants import XKC_KL200_Status
 from xkc_kl200_python.utils import build_command_frame
 
 
@@ -13,7 +13,7 @@ def test_invalid_led_mode_returns_invalid_parameter(
 ) -> None:
     sensor = XKC_KL200(port="/dev/ttyUSB0", serial_factory=serial_factory)
 
-    assert sensor.set_led_mode(9) == XKC_KL200_Error.INVALID_PARAMETER
+    assert sensor.set_led_mode(9) == XKC_KL200_Status.INVALID_PARAMETER
 
 
 # Verify that the supported mode-setting commands all receive acknowledgements.
@@ -30,10 +30,12 @@ def test_set_control_modes_acknowledge(serial_factory: FakeSerialFactory) -> Non
         build_command_frame(header=0x61, command=0x30, address=0xFFFF)
     )
 
-    assert sensor.set_led_mode(LedMode.ALWAYS_ON) == XKC_KL200_Error.SUCCESS
+    assert sensor.set_led_mode(LedMode.ALWAYS_ON) == XKC_KL200_Status.SUCCESS
     assert (
-        sensor.set_relay_mode(RelayMode.ACTIVE_WHEN_DETECTED) == XKC_KL200_Error.SUCCESS
+        sensor.set_relay_mode(RelayMode.ACTIVE_WHEN_DETECTED)
+        == XKC_KL200_Status.SUCCESS
     )
     assert (
-        sensor.set_communication_mode(CommunicationMode.UART) == XKC_KL200_Error.SUCCESS
+        sensor.set_communication_mode(CommunicationMode.UART)
+        == XKC_KL200_Status.SUCCESS
     )

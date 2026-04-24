@@ -44,16 +44,20 @@ with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
 ```python
 import time
 
-from xkc_kl200_python import XKC_KL200
+from xkc_kl200_python import XKC_KL200, XKC_KL200_ReadError
 
 with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
     while True:
-        print(sensor.read_distance())
+        try:
+            print(sensor.read_distance())
+        except XKC_KL200_ReadError:
+            print("Read failed")
         time.sleep(0.1)
 ```
 
 `read_distance()` always sends a measurement request and waits for the matching
-response frame. If you want repeated readings, keep the loop in your own code.
+response frame. If that fresh read fails, it raises instead of returning cached
+data. If you want repeated readings, keep the loop in your own code.
 
 This library intentionally does not expose an upload mode. The goal is to keep
 the UART contract predictable and easy to debug: one command, one response, one

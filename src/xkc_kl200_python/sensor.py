@@ -22,8 +22,9 @@ from .constants import (
     SET_LED_MODE_COMMAND,
     SET_RELAY_MODE_COMMAND,
     SYSTEM_HEADER,
-    XKC_KL200_Error,
+    XKC_KL200_Status,
 )
+from .errors import XKC_KL200_ResponseError, XKC_KL200_TimeoutError
 from .serial_manager import SerialFactory, SerialManager
 from .utils import build_command_frame, parse_frame, parse_measurement_frame
 
@@ -82,7 +83,7 @@ class XKC_KL200:
         return self._address
 
     # Send the factory-reset command variant.
-    def hard_reset(self) -> XKC_KL200_Error:
+    def hard_reset(self) -> XKC_KL200_Status:
         """Request a factory reset on the sensor."""
         return self._send_ack_command(
             command=RESET_COMMAND,
@@ -90,7 +91,7 @@ class XKC_KL200:
         )
 
     # Send the user-settings-reset command variant.
-    def soft_reset(self) -> XKC_KL200_Error:
+    def soft_reset(self) -> XKC_KL200_Status:
         """Request a user-settings reset on the sensor."""
         return self._send_ack_command(
             command=RESET_COMMAND,
@@ -98,66 +99,66 @@ class XKC_KL200:
         )
 
     # Persist a new sensor address once the device acknowledges the change.
-    def change_address(self, address: int) -> XKC_KL200_Error:
+    def change_address(self, address: int) -> XKC_KL200_Status:
         """Change the sensor address if the requested value is valid."""
         if not MIN_ADDRESS <= address <= MAX_ADDRESS:
-            return XKC_KL200_Error.INVALID_PARAMETER
+            return XKC_KL200_Status.INVALID_PARAMETER
 
         result = self._send_ack_command(
             command=CHANGE_ADDRESS_COMMAND,
             data_high=(address >> 8) & 0xFF,
             data_low=address & 0xFF,
         )
-        if result == XKC_KL200_Error.SUCCESS:
+        if result == XKC_KL200_Status.SUCCESS:
             self.config.address = address
             self._address = address
         return result
 
     # Accept either a baud-rate value or the raw protocol baud code.
-    def change_baud_rate(self, baud_rate: int) -> XKC_KL200_Error:
+    def change_baud_rate(self, baud_rate: int) -> XKC_KL200_Status:
         """Change the sensor baud rate using a baud value or protocol code."""
         baud_code = self._resolve_baud_rate_code(baud_rate)
         if baud_code is None:
-            return XKC_KL200_Error.INVALID_PARAMETER
+            return XKC_KL200_Status.INVALID_PARAMETER
 
         result = self._send_ack_command(
             command=CHANGE_BAUD_RATE_COMMAND,
             data_low=baud_code,
         )
-        if result == XKC_KL200_Error.SUCCESS:
+        if result == XKC_KL200_Status.SUCCESS:
             new_baudrate = CODE_TO_BAUD_RATE[baud_code]
             self.config.baudrate = new_baudrate
             self._serial_manager.set_baudrate(new_baudrate)
         return result
 
     # Validate and forward the requested LED mode.
-    def set_led_mode(self, mode: int | LedMode) -> XKC_KL200_Error:
+    def set_led_mode(self, mode: int | LedMode) -> XKC_KL200_Status:
         """Configure the sensor LED behavior."""
         value = self._coerce_enum_value(mode, LedMode)
         if value is None:
-            return XKC_KL200_Error.INVALID_PARAMETER
+            return XKC_KL200_Status.INVALID_PARAMETER
         return self._send_ack_command(
             command=SET_LED_MODE_COMMAND,
             data_low=value,
         )
 
     # Validate and forward the requested relay-output mode.
-    def set_relay_mode(self, mode: int | RelayMode) -> XKC_KL200_Error:
+    def set_relay_mode(self, mode: int | RelayMode) -> XKC_KL200_Status:
         """Configure the relay output behavior."""
         value = self._coerce_enum_value(mode, RelayMode)
         if value is None:
-            return XKC_KL200_Error.INVALID_PARAMETER
+            return XKC_KL200_Status.INVALID_PARAMETER
         return self._send_ack_command(
             command=SET_RELAY_MODE_COMMAND,
             data_low=value,
         )
 
     # Validate and forward the overall communication operating mode.
-    def set_communication_mode(self, mode: int | CommunicationMode) -> XKC_KL200_Error:
+    def set_communication_mode(self, mode: int | CommunicationMode) -> XKC_KL200_Status:
         """Switch the device between relay mode and UART mode."""
         value = self._coerce_enum_value(mode, CommunicationMode)
         if value is None:
-            return XKC_KL200_Error.INVALID_PARAMETER
+            return XKC_KL200_Status.INVALID_PARAMETER
         return self._send_ack_command(
             header=SYSTEM_HEADER,
             command=SET_COMMUNICATION_MODE_COMMAND,
@@ -166,7 +167,12 @@ class XKC_KL200:
 
     # Request one fresh measurement frame and cache the successful result.
     def read_distance(self, timeout: float | None = None) -> int:
-        """Request one distance measurement and return the latest known value."""
+        """Request one fresh distance measurement.
+
+        Raises:
+            XKC_KL200_TimeoutError: The sensor did not reply before the timeout.
+            XKC_KL200_ResponseError: The reply frame was malformed or unexpected.
+        """
         self._serial_manager.write_frame(
             build_command_frame(
                 header=COMMAND_HEADER,
@@ -179,12 +185,14 @@ class XKC_KL200:
             FRAME_LENGTH, self.config.timeout if timeout is None else timeout
         )
         if response is None:
-            return self._last_received_distance_mm
+            raise XKC_KL200_TimeoutError("Timed out waiting for a measurement frame")
 
         try:
             address, distance_mm = parse_measurement_frame(response)
-        except ValueError:
-            return self._last_received_distance_mm
+        except ValueError as exc:
+            raise XKC_KL200_ResponseError(
+                "Received an invalid measurement frame"
+            ) from exc
 
         self._last_received_distance_mm = distance_mm
         self._address = address
@@ -205,7 +213,7 @@ class XKC_KL200:
         data_high: int = 0,
         data_low: int = 0,
         tail: int = 0,
-    ) -> XKC_KL200_Error:
+    ) -> XKC_KL200_Status:
         """Send a command frame and wait for its acknowledgement."""
         frame = build_command_frame(
             header=header,
@@ -219,21 +227,21 @@ class XKC_KL200:
         return self._wait_for_response(expected_command=command)
 
     # Parse the next response frame as an acknowledgement for one command.
-    def _wait_for_response(self, expected_command: int) -> XKC_KL200_Error:
+    def _wait_for_response(self, expected_command: int) -> XKC_KL200_Status:
         """Read and classify the acknowledgement for a configuration command."""
         response = self._serial_manager.read_exact(FRAME_LENGTH, self.config.timeout)
         if response is None:
-            return XKC_KL200_Error.TIMEOUT
+            return XKC_KL200_Status.TIMEOUT
 
         try:
             parsed = parse_frame(response, expected_command=expected_command)
         except ValueError as exc:
             if "checksum" in str(exc).lower():
-                return XKC_KL200_Error.CHECKSUM_ERROR
-            return XKC_KL200_Error.RESPONSE_ERROR
+                return XKC_KL200_Status.CHECKSUM_ERROR
+            return XKC_KL200_Status.RESPONSE_ERROR
 
         self._address = parsed.address
-        return XKC_KL200_Error.SUCCESS
+        return XKC_KL200_Status.SUCCESS
 
     # Normalize user-facing baud-rate inputs into the protocol code space.
     @staticmethod

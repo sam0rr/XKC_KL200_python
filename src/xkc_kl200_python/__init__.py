@@ -5,7 +5,12 @@ from .constants import (
     CommunicationMode,
     LedMode,
     RelayMode,
-    XKC_KL200_Error,
+    XKC_KL200_Status,
+)
+from .errors import (
+    XKC_KL200_ReadError,
+    XKC_KL200_ResponseError,
+    XKC_KL200_TimeoutError,
 )
 from .sensor import XKC_KL200
 
@@ -13,7 +18,10 @@ from .sensor import XKC_KL200
 __all__ = [
     "XKC_KL200",
     "SensorConfig",
-    "XKC_KL200_Error",
+    "XKC_KL200_Status",
+    "XKC_KL200_ReadError",
+    "XKC_KL200_TimeoutError",
+    "XKC_KL200_ResponseError",
     "LedMode",
     "RelayMode",
     "CommunicationMode",

@@ -38,7 +38,7 @@ CODE_TO_BAUD_RATE = {code: baudrate for baudrate, code in BAUD_RATE_TO_CODE.item
 
 
 # Report high-level command outcomes through a small stable enum.
-class XKC_KL200_Error(IntEnum):
+class XKC_KL200_Status(IntEnum):
     """Protocol-level status codes returned by the library API."""
 
     SUCCESS = 0
