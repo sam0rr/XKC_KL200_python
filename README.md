@@ -2,6 +2,10 @@
 
 ---
 
+## Version 4.0.0
+
+---
+
 A simplified, typed, and testable Python library for controlling the `XKC-KL200-2M-UART` laser distance sensor over a serial connection.
 
 ---
