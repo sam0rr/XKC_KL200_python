@@ -25,6 +25,10 @@ class SerialPort(Protocol):
 
     def flush(self) -> None: ...
 
+    def reset_input_buffer(self) -> None: ...
+
+    def reset_output_buffer(self) -> None: ...
+
     def close(self) -> None: ...
 
 
@@ -71,6 +75,23 @@ class SerialManager:
     def set_baudrate(self, baudrate: int) -> None:
         """Update the serial port baud rate in place."""
         self._serial.baudrate = baudrate
+
+    # Discard stale unread bytes from both pyserial and the local parser buffer.
+    def reset_input_buffer(self) -> None:
+        """Clear buffered incoming bytes."""
+        self._buffer.clear()
+        self._serial.reset_input_buffer()
+
+    # Discard pending outgoing bytes when abandoning a broken transaction.
+    def reset_output_buffer(self) -> None:
+        """Clear buffered outgoing bytes."""
+        self._serial.reset_output_buffer()
+
+    # Provide one public recovery primitive for callers that need a full clean slate.
+    def reset_buffers(self) -> None:
+        """Clear incoming and outgoing serial buffers."""
+        self.reset_input_buffer()
+        self.reset_output_buffer()
 
     # Send one whole protocol frame and flush it immediately.
     def write_frame(self, frame: bytes) -> None:

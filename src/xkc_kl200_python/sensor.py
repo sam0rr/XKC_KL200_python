@@ -75,6 +75,21 @@ class XKC_KL200:
         """Close the underlying serial connection."""
         self._serial_manager.close()
 
+    # Let applications explicitly recover from noisy or abandoned transactions.
+    def reset_buffers(self) -> None:
+        """Clear pending serial input and output buffers."""
+        self._serial_manager.reset_buffers()
+
+    # Let callers discard stale received bytes without aborting pending writes.
+    def reset_input_buffer(self) -> None:
+        """Clear pending serial input bytes."""
+        self._serial_manager.reset_input_buffer()
+
+    # Let callers abort queued outgoing bytes during explicit recovery.
+    def reset_output_buffer(self) -> None:
+        """Clear pending serial output bytes."""
+        self._serial_manager.reset_output_buffer()
+
     # Surface the most recently acknowledged or measured device address.
     @property
     def address(self) -> int:
@@ -172,6 +187,7 @@ class XKC_KL200:
             XKC_KL200_TimeoutError: The sensor did not reply before the timeout.
             XKC_KL200_ResponseError: The reply frame was malformed or unexpected.
         """
+        self._serial_manager.reset_input_buffer()
         self._serial_manager.write_frame(
             build_command_frame(
                 header=COMMAND_HEADER,
@@ -223,6 +239,7 @@ class XKC_KL200:
             data_low=data_low,
             tail=tail,
         )
+        self._serial_manager.reset_input_buffer()
         self._serial_manager.write_frame(frame)
         return self._wait_for_response(expected_header=header, expected_command=command)
 

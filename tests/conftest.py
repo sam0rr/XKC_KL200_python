@@ -11,6 +11,8 @@ class FakeSerial:
         self.timeout = timeout
         self.is_open = True
         self.written_frames: list[bytes] = []
+        self.reset_input_count = 0
+        self.reset_output_count = 0
         self._chunks: Deque[bytes] = deque()
 
     @property
@@ -36,6 +38,12 @@ class FakeSerial:
 
     def flush(self) -> None:
         return None
+
+    def reset_input_buffer(self) -> None:
+        self.reset_input_count += 1
+
+    def reset_output_buffer(self) -> None:
+        self.reset_output_count += 1
 
     def close(self) -> None:
         self.is_open = False

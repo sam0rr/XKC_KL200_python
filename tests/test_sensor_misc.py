@@ -39,6 +39,30 @@ def test_context_manager_closes_serial(serial_factory: FakeSerialFactory) -> Non
     assert serial_factory.holder["serial"].is_open is False
 
 
+# Verify that callers can explicitly clear serial buffers during recovery.
+def test_reset_buffers_clears_serial_buffers(serial_factory: FakeSerialFactory) -> None:
+    sensor = make_sensor(serial_factory)
+    serial_port = serial_factory.holder["serial"]
+
+    sensor.reset_buffers()
+
+    assert serial_port.reset_input_count == 1
+    assert serial_port.reset_output_count == 1
+
+
+# Verify that callers can clear the output buffer directly when aborting recovery.
+def test_reset_output_buffer_clears_serial_output(
+    serial_factory: FakeSerialFactory,
+) -> None:
+    sensor = make_sensor(serial_factory)
+    serial_port = serial_factory.holder["serial"]
+
+    sensor.reset_output_buffer()
+
+    assert serial_port.reset_input_count == 0
+    assert serial_port.reset_output_count == 1
+
+
 # Verify that both reset command variants return successful acknowledgements.
 def test_hard_and_soft_reset(serial_factory: FakeSerialFactory) -> None:
     sensor = make_sensor(serial_factory)
@@ -52,6 +76,7 @@ def test_hard_and_soft_reset(serial_factory: FakeSerialFactory) -> None:
 
     assert sensor.hard_reset() == XKC_KL200_Status.SUCCESS
     assert sensor.soft_reset() == XKC_KL200_Status.SUCCESS
+    assert serial_port.reset_input_count == 2
 
 
 # Verify that address changes update both config intent and cached runtime state.

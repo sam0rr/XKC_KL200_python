@@ -23,6 +23,7 @@ def test_read_distance_updates_state(serial_factory: FakeSerialFactory) -> None:
     distance = sensor.read_distance()
 
     assert distance == 300
+    assert serial_port.reset_input_count == 1
     assert sensor.last_received_distance == 300
     assert sensor.address == 0xFFFF
     assert serial_port.written_frames == [
