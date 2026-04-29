@@ -50,6 +50,19 @@ def test_reset_buffers_clears_serial_buffers(serial_factory: FakeSerialFactory) 
     assert serial_port.reset_output_count == 1
 
 
+# Verify that callers can clear the input buffer directly before a fresh probe.
+def test_reset_input_buffer_clears_serial_input(
+    serial_factory: FakeSerialFactory,
+) -> None:
+    sensor = make_sensor(serial_factory)
+    serial_port = serial_factory.holder["serial"]
+
+    sensor.reset_input_buffer()
+
+    assert serial_port.reset_input_count == 1
+    assert serial_port.reset_output_count == 0
+
+
 # Verify that callers can clear the output buffer directly when aborting recovery.
 def test_reset_output_buffer_clears_serial_output(
     serial_factory: FakeSerialFactory,
