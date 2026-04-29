@@ -26,10 +26,16 @@ def test_write_frame(serial_factory: FakeSerialFactory) -> None:
 def test_default_serial_factory_uses_serial_module(monkeypatch: MonkeyPatch) -> None:
     fake_serial = FakeSerial(port="/dev/null", baudrate=9600, timeout=1.0)
 
-    def fake_constructor(port: str, baudrate: int, timeout: float) -> FakeSerial:
+    def fake_constructor(
+        port: str,
+        baudrate: int,
+        timeout: float,
+        exclusive: bool,
+    ) -> FakeSerial:
         assert port == "/dev/ttyUSB0"
         assert baudrate == 9600
         assert timeout == 1.0
+        assert exclusive is True
         return fake_serial
 
     monkeypatch.setattr(

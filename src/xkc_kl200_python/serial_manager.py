@@ -40,7 +40,7 @@ def default_serial_factory(port: str, baudrate: int, timeout: float) -> SerialPo
     """Create the default pyserial-backed serial connection."""
     return cast(
         SerialPort,
-        serial.Serial(port=port, baudrate=baudrate, timeout=timeout),
+        serial.Serial(port=port, baudrate=baudrate, timeout=timeout, exclusive=True),
     )
 
 

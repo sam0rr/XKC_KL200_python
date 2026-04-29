@@ -55,6 +55,10 @@ with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
     print(f"Distance: {distance_mm} mm")
 ```
 
+The library requests exclusive access when opening the serial port, so another
+process already using the same UART should fail at open time instead of causing
+mixed reads later.
+
 If you want continuous data, loop in your own application:
 
 ```python
