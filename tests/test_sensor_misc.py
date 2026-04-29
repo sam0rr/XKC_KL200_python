@@ -95,24 +95,62 @@ def test_invalid_relay_and_communication_modes(
     assert sensor.set_communication_mode(9) == XKC_KL200_Status.INVALID_PARAMETER
 
 
-# Verify timeout, checksum, and wrong-command responses from the ACK reader.
+# Verify timeout and checksum responses from the ACK reader.
 def test_wait_for_response_timeout_and_errors(
     serial_factory: FakeSerialFactory,
 ) -> None:
     sensor = make_sensor(serial_factory, timeout=0.0)
     serial_port = serial_factory.holder["serial"]
 
-    assert sensor._wait_for_response(0x34) == XKC_KL200_Status.TIMEOUT
+    assert sensor._wait_for_response(expected_command=0x34) == XKC_KL200_Status.TIMEOUT
 
     serial_port.queue_read(
         bytes([0x62, 0x34, 0x09, 0xFF, 0xFF, 0x00, 0x00, 0x00, 0x00])
     )
-    assert sensor._wait_for_response(0x34) == XKC_KL200_Status.CHECKSUM_ERROR
+    assert (
+        sensor._wait_for_response(expected_command=0x34)
+        == XKC_KL200_Status.CHECKSUM_ERROR
+    )
 
+    serial_port.queue_read(b"\x62\x34\x08\xff\xff\x00\x00\x00\x00")
+    assert (
+        sensor._wait_for_response(expected_command=0x34)
+        == XKC_KL200_Status.RESPONSE_ERROR
+    )
+
+
+# Verify that stale measurement frames are skipped until the ACK arrives.
+def test_wait_for_response_skips_stale_valid_frame(
+    serial_factory: FakeSerialFactory,
+) -> None:
+    sensor = make_sensor(serial_factory)
+    serial_port = serial_factory.holder["serial"]
+    serial_port.queue_read(
+        build_command_frame(
+            header=0x62,
+            command=0x33,
+            address=0xFFFF,
+            data_low=21,
+        )
+    )
+    serial_port.queue_read(
+        build_command_frame(header=0x62, command=0x39, address=0xFFFF)
+    )
+
+    assert sensor._wait_for_response(expected_command=0x39) == XKC_KL200_Status.SUCCESS
+
+
+# Verify that stale ACK traffic still times out when no matching ACK arrives.
+def test_wait_for_response_stale_frame_then_timeout(
+    serial_factory: FakeSerialFactory,
+) -> None:
+    sensor = make_sensor(serial_factory, timeout=0.0)
+    serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
         build_command_frame(header=0x62, command=0x35, address=0xFFFF)
     )
-    assert sensor._wait_for_response(0x34) == XKC_KL200_Status.RESPONSE_ERROR
+
+    assert sensor._wait_for_response(expected_command=0x34) == XKC_KL200_Status.TIMEOUT
 
 
 # Verify the small baud helper supports both values and raw codes.
@@ -151,3 +189,18 @@ def test_communication_mode_success_uses_system_header(
 
     assert result == XKC_KL200_Status.SUCCESS
     assert serial_port.written_frames[-1][0] == 0x61
+
+
+# Verify that set_communication_mode ignores a stale baud-rate ACK with the same command byte.
+def test_set_communication_mode_requires_system_header_ack(
+    serial_factory: FakeSerialFactory,
+) -> None:
+    sensor = make_sensor(serial_factory, timeout=0.0)
+    serial_port = serial_factory.holder["serial"]
+    serial_port.queue_read(
+        build_command_frame(header=0x62, command=0x30, address=0xFFFF)
+    )
+
+    result = sensor.set_communication_mode(CommunicationMode.UART)
+
+    assert result == XKC_KL200_Status.TIMEOUT

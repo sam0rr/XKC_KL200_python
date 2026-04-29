@@ -1,6 +1,6 @@
 [project]
 name = "xkc-kl200-python"
-version = "4.0.0"
+version = "5.0.0"
 description = "A typed Python library for controlling the XKC-KL200 UART laser distance sensor."
 readme = "README.md"
 requires-python = ">=3.10"

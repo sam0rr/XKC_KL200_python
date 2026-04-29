@@ -71,6 +71,9 @@ def parse_frame(frame: bytes, *, expected_command: int | None = None) -> Protoco
     if frame[0] not in (COMMAND_HEADER, SYSTEM_HEADER):
         raise ValueError(f"Invalid frame header: {frame[0]:#04x}")
 
+    if frame[2] != FRAME_LENGTH:
+        raise ValueError(f"Invalid frame length byte: {frame[2]:#04x}")
+
     expected_checksum = calculate_checksum(frame[:-1])
     if frame[-1] != expected_checksum:
         raise ValueError("Invalid checksum")

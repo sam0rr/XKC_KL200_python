@@ -11,7 +11,6 @@ from .constants import (
     CODE_TO_BAUD_RATE,
     COMMAND_HEADER,
     CommunicationMode,
-    FRAME_LENGTH,
     LedMode,
     MAX_ADDRESS,
     MIN_ADDRESS,
@@ -181,18 +180,19 @@ class XKC_KL200:
             )
         )
 
-        response = self._serial_manager.read_exact(
-            FRAME_LENGTH, self.config.timeout if timeout is None else timeout
+        response, status = self._serial_manager.read_frame(
+            expected_header=COMMAND_HEADER,
+            expected_command=READ_DISTANCE_COMMAND,
+            timeout=self.config.timeout if timeout is None else timeout,
         )
         if response is None:
-            raise XKC_KL200_TimeoutError("Timed out waiting for a measurement frame")
+            if status == XKC_KL200_Status.TIMEOUT:
+                raise XKC_KL200_TimeoutError(
+                    "Timed out waiting for a measurement frame"
+                )
+            raise XKC_KL200_ResponseError("Received an invalid measurement frame")
 
-        try:
-            address, distance_mm = parse_measurement_frame(response)
-        except ValueError as exc:
-            raise XKC_KL200_ResponseError(
-                "Received an invalid measurement frame"
-            ) from exc
+        address, distance_mm = parse_measurement_frame(response)
 
         self._last_received_distance_mm = distance_mm
         self._address = address
@@ -224,22 +224,31 @@ class XKC_KL200:
             tail=tail,
         )
         self._serial_manager.write_frame(frame)
-        return self._wait_for_response(expected_command=command)
+        return self._wait_for_response(expected_header=header, expected_command=command)
 
     # Parse the next response frame as an acknowledgement for one command.
-    def _wait_for_response(self, expected_command: int) -> XKC_KL200_Status:
+    def _wait_for_response(
+        self,
+        *,
+        expected_header: int = COMMAND_HEADER,
+        expected_command: int,
+    ) -> XKC_KL200_Status:
         """Read and classify the acknowledgement for a configuration command."""
-        response = self._serial_manager.read_exact(FRAME_LENGTH, self.config.timeout)
+        # Command 0x30 is shared by baud-rate and communication-mode ACKs.
+        allow_header_mismatch_skip = expected_command == CHANGE_BAUD_RATE_COMMAND
+        response, status = self._serial_manager.read_frame(
+            allow_header_mismatch_skip=allow_header_mismatch_skip,
+            expected_header=expected_header,
+            expected_command=expected_command,
+            timeout=self.config.timeout,
+        )
         if response is None:
-            return XKC_KL200_Status.TIMEOUT
+            return status
 
-        try:
-            parsed = parse_frame(response, expected_command=expected_command)
-        except ValueError as exc:
-            if "checksum" in str(exc).lower():
-                return XKC_KL200_Status.CHECKSUM_ERROR
-            return XKC_KL200_Status.RESPONSE_ERROR
-
+        parsed = parse_frame(
+            response,
+            expected_command=expected_command,
+        )
         self._address = parsed.address
         return XKC_KL200_Status.SUCCESS
 
