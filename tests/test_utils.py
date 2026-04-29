@@ -49,6 +49,14 @@ def test_parse_frame_invalid_length_raises() -> None:
         parse_frame(b"\x62\x33")
 
 
+# Verify that the embedded length byte must match the fixed protocol size.
+def test_parse_frame_invalid_length_byte_raises() -> None:
+    frame = bytes([0x62, 0x33, 0x08, 0x12, 0x34, 0x01, 0x90, 0x00, 0xEC])
+
+    with pytest.raises(ValueError, match="Invalid frame length byte"):
+        parse_frame(frame)
+
+
 # Verify that unknown frame headers are treated as protocol errors.
 def test_parse_frame_invalid_header_raises() -> None:
     frame = bytes([0x60, 0x33, 0x09, 0x12, 0x34, 0x01, 0x90, 0x00, 0xED])
