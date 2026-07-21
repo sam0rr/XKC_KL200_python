@@ -3,31 +3,105 @@ name = "xkc-kl200-python"
 version = "5.0.0"
 description = "A typed Python library for controlling the XKC-KL200 UART laser distance sensor."
 readme = "README.md"
-requires-python = ">=3.10"
+authors = [
+    { name = "sam0rr", email = "samor140@hotmail.com" }
+]
+requires-python = ">=3.13"
 dependencies = [
     "pyserial>=3.5",
 ]
 
 [build-system]
-requires = ["uv_build>=0.10.2,<0.11.0"]
+requires = ["uv_build>=0.11.19,<0.12.0"]
 build-backend = "uv_build"
 
 [dependency-groups]
 dev = [
-    "black>=26.1.0",
-    "mypy>=1.19.1",
-    "pytest>=9.0.2",
-    "pytest-cov>=7.0.0",
-    "ruff>=0.15.0",
+    "mypy>=2.1.0",
+    "pytest>=9.0.3",
+    "pytest-cov>=7.1.0",
+    "ruff>=0.15.17",
+    "types-pyserial>=3.5.0",
+    "vulture>=2.16",
 ]
 
 [tool.pytest.ini_options]
-addopts = "-v --maxfail=1 --cov=xkc_kl200_python"
+addopts = "-v --maxfail=1 --cov=xkc_kl200_python --cov-fail-under=100"
 
 [tool.mypy]
 strict = true
+disallow_any_explicit = true
 files = ["src", "tests"]
 
-[[tool.mypy.overrides]]
-module = ["serial"]
-ignore_missing_imports = true
+[tool.ruff]
+target-version = "py313"
+
+[tool.ruff.lint]
+# Based on the official Ruff configurations used by FastAPI, Pydantic,
+# Pydantic AI, and HTTPX:
+# https://github.com/fastapi/fastapi/blob/master/pyproject.toml
+# https://github.com/pydantic/pydantic/blob/main/pyproject.toml
+# https://github.com/pydantic/pydantic-ai/blob/main/pyproject.toml
+# https://github.com/encode/httpx/blob/master/pyproject.toml
+select = [
+    # Core correctness.
+    "E",       # Pycodestyle errors
+    "W",       # Pycodestyle warnings
+    "F",       # Pyflakes correctness
+    "B",       # Flake8 Bugbear
+    "PLE",     # Pylint error-level correctness checks
+
+    # FastAPI and asynchronous correctness.
+    "FAST",    # FastAPI correctness and modern parameter declarations
+    "ASYNC",   # Blocking and unsafe async patterns
+    "RUF006",  # Dangling asyncio tasks
+
+    # Imports, modernization, and unnecessary code.
+    "I",       # Import ordering
+    "UP",      # Python 3.13 syntax modernization
+    "C4",      # Comprehension improvements
+    "PIE",     # Unnecessary code
+
+    # Documentation, maintainability, and performance.
+    "D",       # Docstring conventions
+    "C90",     # McCabe complexity
+    "PLR0913", # Excessive function arguments
+    "PERF",    # Performance anti-patterns
+
+    # Logging and development hygiene.
+    "LOG",     # Logging correctness
+    "G",       # Logging format correctness
+    "T10",     # Debugger calls
+    "T20",     # Print statements
+
+    # Test and assertion correctness.
+    "PT",      # Pytest correctness and style
+    "RUF018",  # Assignments inside assertions
+    "RUF043",  # Ambiguous pytest.raises patterns
+
+    # Suppression and project metadata hygiene.
+    "PGH",     # Blanket suppressions and invalid mock access
+    "RUF10",   # Noqa and suppression-comment checks
+    "RUF200",  # Invalid pyproject.toml metadata
+]
+ignore = [
+    "E501",  # Line length is handled by the Ruff formatter
+]
+
+[tool.ruff.lint.mccabe]
+# Pydantic AI uses 15: strict enough to expose genuinely complex functions
+# without forcing ordinary orchestration code into unnecessary abstractions.
+max-complexity = 15
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+# Vulture whitelist files intentionally use undefined bare-name expressions
+# to mark dynamically consumed symbols as used.
+"vulture_whitelist.py" = ["B018", "F821"]
+
+[tool.vulture]
+min_confidence = 60
+paths = ["src", "tests", "vulture_whitelist.py"]
+sort_by_size = true
