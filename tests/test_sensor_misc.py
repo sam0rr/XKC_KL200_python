@@ -1,19 +1,17 @@
 """Miscellaneous behavior tests for the simplified sensor wrapper."""
 
 import pytest
-from pytest import MonkeyPatch
-
 from conftest import FakeSerialFactory
 
-from xkc_kl200_python import CommunicationMode, SensorConfig, XKC_KL200
+from xkc_kl200_python import XKC_KL200, CommunicationMode, SensorConfig
 from xkc_kl200_python.constants import XKC_KL200_Status
-from xkc_kl200_python.utils import build_command_frame
+from xkc_kl200_python.utils import FramePayload, build_command_frame
 
 
-# Create a zero-startup-delay sensor for focused behavior tests.
 def make_sensor(
     serial_factory: FakeSerialFactory, *, timeout: float = 0.01
 ) -> XKC_KL200:
+    """Create a zero-startup-delay sensor for focused behavior tests."""
     config = SensorConfig(
         port="/dev/ttyUSB0",
         baudrate=9600,
@@ -23,14 +21,14 @@ def make_sensor(
     return XKC_KL200(config=config, serial_factory=serial_factory)
 
 
-# Verify that callers must provide either a port or a full config object.
 def test_init_without_port_or_config_raises() -> None:
+    """Verify that callers must provide either a port or a full config object."""
     with pytest.raises(ValueError, match="port is required"):
         XKC_KL200()
 
 
-# Verify that context-manager use always closes the serial port.
 def test_context_manager_closes_serial(serial_factory: FakeSerialFactory) -> None:
+    """Verify that context-manager use always closes the serial port."""
     sensor: XKC_KL200
     with make_sensor(serial_factory) as sensor:
         assert sensor is not None
@@ -39,8 +37,8 @@ def test_context_manager_closes_serial(serial_factory: FakeSerialFactory) -> Non
     assert serial_factory.holder["serial"].is_open is False
 
 
-# Verify that callers can explicitly clear serial buffers during recovery.
 def test_reset_buffers_clears_serial_buffers(serial_factory: FakeSerialFactory) -> None:
+    """Verify that callers can explicitly clear serial buffers during recovery."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
 
@@ -50,10 +48,10 @@ def test_reset_buffers_clears_serial_buffers(serial_factory: FakeSerialFactory) 
     assert serial_port.reset_output_count == 1
 
 
-# Verify that callers can clear the input buffer directly before a fresh probe.
 def test_reset_input_buffer_clears_serial_input(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify that callers can clear the input buffer directly before a fresh probe."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
 
@@ -63,10 +61,10 @@ def test_reset_input_buffer_clears_serial_input(
     assert serial_port.reset_output_count == 0
 
 
-# Verify that callers can clear the output buffer directly when aborting recovery.
 def test_reset_output_buffer_clears_serial_output(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify that callers can clear the output buffer directly when aborting recovery."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
 
@@ -76,8 +74,8 @@ def test_reset_output_buffer_clears_serial_output(
     assert serial_port.reset_output_count == 1
 
 
-# Verify that both reset command variants return successful acknowledgements.
 def test_hard_and_soft_reset(serial_factory: FakeSerialFactory) -> None:
+    """Verify that both reset command variants return successful acknowledgements."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
@@ -92,10 +90,10 @@ def test_hard_and_soft_reset(serial_factory: FakeSerialFactory) -> None:
     assert serial_port.reset_input_count == 2
 
 
-# Verify that address changes update both config intent and cached runtime state.
 def test_change_address_success_updates_config_and_state(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify that address changes update both config intent and cached runtime state."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
@@ -109,34 +107,34 @@ def test_change_address_success_updates_config_and_state(
     assert sensor.address == 0x1234
 
 
-# Verify that out-of-range addresses are rejected before touching the port.
 def test_change_address_invalid_parameter(serial_factory: FakeSerialFactory) -> None:
+    """Verify that out-of-range addresses are rejected before touching the port."""
     sensor = make_sensor(serial_factory)
 
     assert sensor.change_address(0x1_0000) == XKC_KL200_Status.INVALID_PARAMETER
 
 
-# Verify that unsupported baud values are rejected before sending a command.
 def test_change_baud_rate_invalid_parameter(serial_factory: FakeSerialFactory) -> None:
+    """Verify that unsupported baud values are rejected before sending a command."""
     sensor = make_sensor(serial_factory)
 
     assert sensor.change_baud_rate(12345) == XKC_KL200_Status.INVALID_PARAMETER
 
 
-# Verify that invalid enum values for relay and communication mode are rejected.
 def test_invalid_relay_and_communication_modes(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify that invalid enum values for relay and communication mode are rejected."""
     sensor = make_sensor(serial_factory)
 
     assert sensor.set_relay_mode(3) == XKC_KL200_Status.INVALID_PARAMETER
     assert sensor.set_communication_mode(9) == XKC_KL200_Status.INVALID_PARAMETER
 
 
-# Verify timeout and checksum responses from the ACK reader.
 def test_wait_for_response_timeout_and_errors(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify timeout and checksum responses from the ACK reader."""
     sensor = make_sensor(serial_factory, timeout=0.0)
     serial_port = serial_factory.holder["serial"]
 
@@ -157,10 +155,10 @@ def test_wait_for_response_timeout_and_errors(
     )
 
 
-# Verify that stale measurement frames are skipped until the ACK arrives.
 def test_wait_for_response_skips_stale_valid_frame(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify that stale measurement frames are skipped until the ACK arrives."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
@@ -168,7 +166,7 @@ def test_wait_for_response_skips_stale_valid_frame(
             header=0x62,
             command=0x33,
             address=0xFFFF,
-            data_low=21,
+            payload=FramePayload(data_low=21),
         )
     )
     serial_port.queue_read(
@@ -178,10 +176,10 @@ def test_wait_for_response_skips_stale_valid_frame(
     assert sensor._wait_for_response(expected_command=0x39) == XKC_KL200_Status.SUCCESS
 
 
-# Verify that stale ACK traffic still times out when no matching ACK arrives.
 def test_wait_for_response_stale_frame_then_timeout(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify that stale ACK traffic still times out when no matching ACK arrives."""
     sensor = make_sensor(serial_factory, timeout=0.0)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
@@ -191,17 +189,17 @@ def test_wait_for_response_stale_frame_then_timeout(
     assert sensor._wait_for_response(expected_command=0x34) == XKC_KL200_Status.TIMEOUT
 
 
-# Verify the small baud helper supports both values and raw codes.
 def test_resolve_baud_rate_code_static_helper() -> None:
+    """Verify the small baud helper supports both values and raw codes."""
     assert XKC_KL200._resolve_baud_rate_code(9600) == 2
     assert XKC_KL200._resolve_baud_rate_code(8) == 8
     assert XKC_KL200._resolve_baud_rate_code(99999) is None
 
 
-# Verify that close() delegates directly to the transport wrapper.
 def test_close_delegates_to_serial_manager(
-    serial_factory: FakeSerialFactory, monkeypatch: MonkeyPatch
+    serial_factory: FakeSerialFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """Verify that close() delegates directly to the transport wrapper."""
     sensor = make_sensor(serial_factory)
     close_calls: list[str] = []
     manager = sensor._serial_manager
@@ -213,10 +211,10 @@ def test_close_delegates_to_serial_manager(
     assert close_calls == ["closed"]
 
 
-# Verify that communication-mode commands use the protocol system header.
 def test_communication_mode_success_uses_system_header(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify that communication-mode commands use the protocol system header."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
@@ -229,10 +227,10 @@ def test_communication_mode_success_uses_system_header(
     assert serial_port.written_frames[-1][0] == 0x61
 
 
-# Verify that set_communication_mode ignores a stale baud-rate ACK with the same command byte.
 def test_set_communication_mode_requires_system_header_ack(
     serial_factory: FakeSerialFactory,
 ) -> None:
+    """Verify that set_communication_mode ignores a stale baud-rate ACK with the same command byte."""
     sensor = make_sensor(serial_factory, timeout=0.0)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(

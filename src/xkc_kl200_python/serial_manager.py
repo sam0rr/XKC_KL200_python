@@ -1,7 +1,8 @@
 """Small serial transport wrapper used by the sensor implementation."""
 
 import time
-from typing import Callable, Protocol, cast
+from collections.abc import Callable
+from typing import Protocol
 
 import serial
 
@@ -17,38 +18,51 @@ class SerialPort(Protocol):
     is_open: bool
 
     @property
-    def in_waiting(self) -> int: ...
+    def in_waiting(self) -> int:
+        """Return the number of input bytes ready to read."""
+        ...
 
-    def read(self, size: int = 1) -> bytes: ...
+    def read(self, size: int = 1) -> bytes:
+        """Read up to the requested number of bytes."""
+        ...
 
-    def write(self, data: bytes) -> int: ...
+    def write(self, data: bytes) -> int | None:
+        """Write bytes and return the number accepted when reported."""
+        ...
 
-    def flush(self) -> None: ...
+    def flush(self) -> None:
+        """Flush buffered output to the serial device."""
+        ...
 
-    def reset_input_buffer(self) -> None: ...
+    def reset_input_buffer(self) -> None:
+        """Discard pending input bytes."""
+        ...
 
-    def reset_output_buffer(self) -> None: ...
+    def reset_output_buffer(self) -> None:
+        """Discard pending output bytes."""
+        ...
 
-    def close(self) -> None: ...
+    def close(self) -> None:
+        """Close the serial connection."""
+        ...
 
 
 SerialFactory = Callable[[str, int, float], SerialPort]
 
 
-# Create the default pyserial-backed port for production use.
 def default_serial_factory(port: str, baudrate: int, timeout: float) -> SerialPort:
     """Create the default pyserial-backed serial connection."""
-    return cast(
-        SerialPort,
-        serial.Serial(port=port, baudrate=baudrate, timeout=timeout, exclusive=True),
+    return serial.Serial(
+        port=port,
+        baudrate=baudrate,
+        timeout=timeout,
+        exclusive=True,
     )
 
 
-# Keep transport details separate from the higher-level sensor protocol code.
 class SerialManager:
     """Thin wrapper around the serial transport used by the sensor."""
 
-    # Open the underlying serial port with the validated connection settings.
     def __init__(
         self,
         config: SensorConfig,
@@ -59,47 +73,39 @@ class SerialManager:
         self._serial = factory(config.port, config.baudrate, config.timeout)
         self._buffer = bytearray()
 
-    # Expose whether the underlying port still considers itself open.
     @property
     def is_open(self) -> bool:
         """Return True when the serial port is still open."""
         return bool(self._serial.is_open)
 
-    # Close the port idempotently so callers can clean up safely.
     def close(self) -> None:
         """Close the serial port if it is open."""
         if self._serial.is_open:
             self._serial.close()
 
-    # Update the live port baud rate after a successful protocol change.
     def set_baudrate(self, baudrate: int) -> None:
         """Update the serial port baud rate in place."""
         self._serial.baudrate = baudrate
 
-    # Discard stale unread bytes from both pyserial and the local parser buffer.
     def reset_input_buffer(self) -> None:
         """Clear buffered incoming bytes."""
         self._buffer.clear()
         self._serial.reset_input_buffer()
 
-    # Discard pending outgoing bytes when abandoning a broken transaction.
     def reset_output_buffer(self) -> None:
         """Clear buffered outgoing bytes."""
         self._serial.reset_output_buffer()
 
-    # Provide one public recovery primitive for callers that need a full clean slate.
     def reset_buffers(self) -> None:
         """Clear incoming and outgoing serial buffers."""
         self.reset_input_buffer()
         self.reset_output_buffer()
 
-    # Send one whole protocol frame and flush it immediately.
     def write_frame(self, frame: bytes) -> None:
         """Write a full protocol frame and flush it immediately."""
         self._serial.write(frame)
         self._serial.flush()
 
-    # Read one complete protocol frame while resynchronizing around junk bytes.
     def read_frame(
         self,
         *,
@@ -150,7 +156,6 @@ class SerialManager:
 
             time.sleep(0.001)
 
-    # Keep parsing buffered bytes until no further progress is possible.
     def _scan_buffer(
         self,
         *,
@@ -180,7 +185,6 @@ class SerialManager:
             if not consumed_data:
                 return None, deferred_error
 
-    # Read whatever the serial backend currently has ready into the local buffer.
     def _read_from_serial(self, *, limit: int | None = None) -> int:
         """Read available serial bytes into the internal buffer without blocking."""
         waiting = int(self._serial.in_waiting)
@@ -195,7 +199,6 @@ class SerialManager:
         self._buffer.extend(chunk)
         return len(chunk)
 
-    # Scan the local buffer for one frame and report whether progress was made.
     def _extract_frame(
         self,
         *,
@@ -254,7 +257,6 @@ class SerialManager:
         del self._buffer[:FRAME_LENGTH]
         return candidate, None, True
 
-    # Preserve overlapping candidate windows when a checksum-valid frame mismatches.
     def _consume_mismatched_candidate(
         self,
         *,
@@ -268,7 +270,6 @@ class SerialManager:
             del self._buffer[:overlap_header_index]
         return None, error_status, True
 
-    # Find the next possible frame header without allocating new buffers.
     def _find_next_header(self, *, start: int = 0, stop: int | None = None) -> int:
         """Return the index of the next protocol header byte or ``-1``."""
         end_index = len(self._buffer) if stop is None else min(stop, len(self._buffer))

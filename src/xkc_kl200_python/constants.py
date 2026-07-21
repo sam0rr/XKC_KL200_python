@@ -37,7 +37,6 @@ BAUD_RATE_TO_CODE = {
 CODE_TO_BAUD_RATE = {code: baudrate for baudrate, code in BAUD_RATE_TO_CODE.items()}
 
 
-# Report high-level command outcomes through a small stable enum.
 class XKC_KL200_Status(IntEnum):
     """Protocol-level status codes returned by the library API."""
 
@@ -48,7 +47,6 @@ class XKC_KL200_Status(IntEnum):
     RESPONSE_ERROR = 4
 
 
-# Control the visible LED behavior on the sensor body.
 class LedMode(IntEnum):
     """Supported LED behavior modes."""
 
@@ -58,7 +56,6 @@ class LedMode(IntEnum):
     ALWAYS_ON = 3
 
 
-# Control how the relay output polarity reacts to detection events.
 class RelayMode(IntEnum):
     """Supported relay output modes."""
 
@@ -66,7 +63,6 @@ class RelayMode(IntEnum):
     INACTIVE_WHEN_DETECTED = 1
 
 
-# Switch the overall operating interface between relay and UART behavior.
 class CommunicationMode(IntEnum):
     """High-level communication operating modes."""
 

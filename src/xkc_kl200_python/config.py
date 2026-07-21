@@ -10,7 +10,7 @@ from .constants import (
 )
 
 
-@dataclass
+@dataclass(frozen=True, slots=True, kw_only=True)
 class SensorConfig:
     """Serial connection settings for an XKC-KL200 sensor instance."""
 
@@ -20,7 +20,6 @@ class SensorConfig:
     address: int = DEFAULT_SENSOR_ADDRESS
     startup_delay_s: float = 0.1
 
-    # Validate the constructor inputs once so runtime code can assume they are sound.
     def __post_init__(self) -> None:
         """Validate configuration values at construction time."""
         if not self.port:

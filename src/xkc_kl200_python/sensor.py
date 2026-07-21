@@ -1,6 +1,7 @@
 """High-level request/response wrapper for the XKC-KL200 UART sensor."""
 
 import time
+from dataclasses import replace
 from typing import TypeVar
 
 from .config import SensorConfig
@@ -10,31 +11,35 @@ from .constants import (
     CHANGE_BAUD_RATE_COMMAND,
     CODE_TO_BAUD_RATE,
     COMMAND_HEADER,
-    CommunicationMode,
-    LedMode,
     MAX_ADDRESS,
     MIN_ADDRESS,
     READ_DISTANCE_COMMAND,
     RESET_COMMAND,
-    RelayMode,
     SET_COMMUNICATION_MODE_COMMAND,
     SET_LED_MODE_COMMAND,
     SET_RELAY_MODE_COMMAND,
     SYSTEM_HEADER,
+    CommunicationMode,
+    LedMode,
+    RelayMode,
     XKC_KL200_Status,
 )
 from .errors import XKC_KL200_ResponseError, XKC_KL200_TimeoutError
 from .serial_manager import SerialFactory, SerialManager
-from .utils import build_command_frame, parse_frame, parse_measurement_frame
+from .utils import (
+    EMPTY_FRAME_PAYLOAD,
+    FramePayload,
+    build_command_frame,
+    parse_frame,
+    parse_measurement_frame,
+)
 
 EnumValue = TypeVar("EnumValue", bound=int)
 
 
-# Keep the public API focused on direct command/response interactions.
 class XKC_KL200:
     """High-level interface for controlling an XKC-KL200 UART sensor."""
 
-    # Build the runtime state once and open the serial transport immediately.
     def __init__(
         self,
         port: str | None = None,
@@ -60,59 +65,54 @@ class XKC_KL200:
         if config.startup_delay_s > 0:
             time.sleep(config.startup_delay_s)
 
-    # Allow callers to use the sensor object in a context manager.
     def __enter__(self) -> "XKC_KL200":
         """Support ``with XKC_KL200(...)`` context management."""
         return self
 
-    # Always close the port when the context manager exits.
     def __exit__(self, *_: object) -> None:
         """Close the serial connection when leaving a context manager."""
         self.close()
 
-    # Expose an explicit manual close for non-context-manager use.
-    def close(self) -> None:
-        """Close the underlying serial connection."""
-        self._serial_manager.close()
-
-    # Let applications explicitly recover from noisy or abandoned transactions.
-    def reset_buffers(self) -> None:
-        """Clear pending serial input and output buffers."""
-        self._serial_manager.reset_buffers()
-
-    # Let callers discard stale received bytes without aborting pending writes.
-    def reset_input_buffer(self) -> None:
-        """Clear pending serial input bytes."""
-        self._serial_manager.reset_input_buffer()
-
-    # Let callers abort queued outgoing bytes during explicit recovery.
-    def reset_output_buffer(self) -> None:
-        """Clear pending serial output bytes."""
-        self._serial_manager.reset_output_buffer()
-
-    # Surface the most recently acknowledged or measured device address.
     @property
     def address(self) -> int:
         """Return the most recently acknowledged or measured sensor address."""
         return self._address
 
-    # Send the factory-reset command variant.
+    @property
+    def last_received_distance(self) -> int:
+        """Return the latest received distance."""
+        return self._last_received_distance_mm
+
+    def close(self) -> None:
+        """Close the underlying serial connection."""
+        self._serial_manager.close()
+
+    def reset_buffers(self) -> None:
+        """Clear pending serial input and output buffers."""
+        self._serial_manager.reset_buffers()
+
+    def reset_input_buffer(self) -> None:
+        """Clear pending serial input bytes."""
+        self._serial_manager.reset_input_buffer()
+
+    def reset_output_buffer(self) -> None:
+        """Clear pending serial output bytes."""
+        self._serial_manager.reset_output_buffer()
+
     def hard_reset(self) -> XKC_KL200_Status:
         """Request a factory reset on the sensor."""
         return self._send_ack_command(
             command=RESET_COMMAND,
-            tail=0xFE,
+            payload=FramePayload(tail=0xFE),
         )
 
-    # Send the user-settings-reset command variant.
     def soft_reset(self) -> XKC_KL200_Status:
         """Request a user-settings reset on the sensor."""
         return self._send_ack_command(
             command=RESET_COMMAND,
-            tail=0xFD,
+            payload=FramePayload(tail=0xFD),
         )
 
-    # Persist a new sensor address once the device acknowledges the change.
     def change_address(self, address: int) -> XKC_KL200_Status:
         """Change the sensor address if the requested value is valid."""
         if not MIN_ADDRESS <= address <= MAX_ADDRESS:
@@ -120,15 +120,16 @@ class XKC_KL200:
 
         result = self._send_ack_command(
             command=CHANGE_ADDRESS_COMMAND,
-            data_high=(address >> 8) & 0xFF,
-            data_low=address & 0xFF,
+            payload=FramePayload(
+                data_high=(address >> 8) & 0xFF,
+                data_low=address & 0xFF,
+            ),
         )
         if result == XKC_KL200_Status.SUCCESS:
-            self.config.address = address
+            self.config = replace(self.config, address=address)
             self._address = address
         return result
 
-    # Accept either a baud-rate value or the raw protocol baud code.
     def change_baud_rate(self, baud_rate: int) -> XKC_KL200_Status:
         """Change the sensor baud rate using a baud value or protocol code."""
         baud_code = self._resolve_baud_rate_code(baud_rate)
@@ -137,15 +138,14 @@ class XKC_KL200:
 
         result = self._send_ack_command(
             command=CHANGE_BAUD_RATE_COMMAND,
-            data_low=baud_code,
+            payload=FramePayload(data_low=baud_code),
         )
         if result == XKC_KL200_Status.SUCCESS:
             new_baudrate = CODE_TO_BAUD_RATE[baud_code]
-            self.config.baudrate = new_baudrate
+            self.config = replace(self.config, baudrate=new_baudrate)
             self._serial_manager.set_baudrate(new_baudrate)
         return result
 
-    # Validate and forward the requested LED mode.
     def set_led_mode(self, mode: int | LedMode) -> XKC_KL200_Status:
         """Configure the sensor LED behavior."""
         value = self._coerce_enum_value(mode, LedMode)
@@ -153,10 +153,9 @@ class XKC_KL200:
             return XKC_KL200_Status.INVALID_PARAMETER
         return self._send_ack_command(
             command=SET_LED_MODE_COMMAND,
-            data_low=value,
+            payload=FramePayload(data_low=value),
         )
 
-    # Validate and forward the requested relay-output mode.
     def set_relay_mode(self, mode: int | RelayMode) -> XKC_KL200_Status:
         """Configure the relay output behavior."""
         value = self._coerce_enum_value(mode, RelayMode)
@@ -164,10 +163,9 @@ class XKC_KL200:
             return XKC_KL200_Status.INVALID_PARAMETER
         return self._send_ack_command(
             command=SET_RELAY_MODE_COMMAND,
-            data_low=value,
+            payload=FramePayload(data_low=value),
         )
 
-    # Validate and forward the overall communication operating mode.
     def set_communication_mode(self, mode: int | CommunicationMode) -> XKC_KL200_Status:
         """Switch the device between relay mode and UART mode."""
         value = self._coerce_enum_value(mode, CommunicationMode)
@@ -176,10 +174,9 @@ class XKC_KL200:
         return self._send_ack_command(
             header=SYSTEM_HEADER,
             command=SET_COMMUNICATION_MODE_COMMAND,
-            data_low=value,
+            payload=FramePayload(data_low=value),
         )
 
-    # Request one fresh measurement frame and cache the successful result.
     def read_distance(self, timeout: float | None = None) -> int:
         """Request one fresh distance measurement.
 
@@ -214,36 +211,24 @@ class XKC_KL200:
         self._address = address
         return distance_mm
 
-    # Expose the last successful measurement without triggering new I/O.
-    @property
-    def last_received_distance(self) -> int:
-        """Return the latest received distance."""
-        return self._last_received_distance_mm
-
-    # Build and send a command frame, then wait for its acknowledgement.
     def _send_ack_command(
         self,
         *,
         command: int,
         header: int = COMMAND_HEADER,
-        data_high: int = 0,
-        data_low: int = 0,
-        tail: int = 0,
+        payload: FramePayload = EMPTY_FRAME_PAYLOAD,
     ) -> XKC_KL200_Status:
         """Send a command frame and wait for its acknowledgement."""
         frame = build_command_frame(
             header=header,
             command=command,
             address=self.config.address,
-            data_high=data_high,
-            data_low=data_low,
-            tail=tail,
+            payload=payload,
         )
         self._serial_manager.reset_input_buffer()
         self._serial_manager.write_frame(frame)
         return self._wait_for_response(expected_header=header, expected_command=command)
 
-    # Parse the next response frame as an acknowledgement for one command.
     def _wait_for_response(
         self,
         *,
@@ -269,7 +254,6 @@ class XKC_KL200:
         self._address = parsed.address
         return XKC_KL200_Status.SUCCESS
 
-    # Normalize user-facing baud-rate inputs into the protocol code space.
     @staticmethod
     def _resolve_baud_rate_code(baud_rate: int) -> int | None:
         """Normalize a baud rate value or code into a protocol baud code."""
@@ -279,7 +263,6 @@ class XKC_KL200:
             return baud_rate
         return None
 
-    # Reuse one small validator for the different command enums.
     @staticmethod
     def _coerce_enum_value(
         value: int | EnumValue, enum_type: type[EnumValue]

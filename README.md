@@ -170,20 +170,26 @@ cd XKC_KL200_python
 uv sync
 ```
 
-3. Run formatting and linting:
+3. Run linting and formatting:
 
 ```bash
-uv run black .
-uv run ruff check .
+uv run ruff check . --fix
+uv run ruff format .
 ```
 
-4. Run type checks:
+4. Run type check:
 
 ```bash
 uv run mypy
 ```
 
-5. Run tests:
+5. Run dead code check:
+
+```bash
+uv run vulture
+```
+
+6. Run tests:
 
 ```bash
 uv run pytest
