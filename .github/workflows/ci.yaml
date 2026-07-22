@@ -17,11 +17,7 @@ jobs:
         uses: astral-sh/setup-uv@v8.3.2
 
       - name: Install dependencies
-        env:
-          GH_TOKEN: ${{ secrets.SITRAD_RS485_PYTHON_READ_TOKEN }}
-        run: |
-          gh auth setup-git --hostname github.com --force
-          uv sync --locked
+        run: uv sync --locked
 
       - name: Format check (ruff)
         run: uv run ruff format --check .
