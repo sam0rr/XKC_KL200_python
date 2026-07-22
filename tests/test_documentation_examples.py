@@ -7,8 +7,8 @@ import sys
 from pathlib import Path
 
 
-def _python_fence_start(line: str) -> tuple[str, int, int] | None:
-    """Return marker, width, and indentation for a Python opening fence."""
+def _fence_start(line: str) -> tuple[str, int, int, bool] | None:
+    """Return the structure and Python status of a Markdown opening fence."""
     content = line.rstrip("\r\n")
     stripped = content.lstrip(" ")
     indentation = len(content) - len(stripped)
@@ -24,9 +24,8 @@ def _python_fence_start(line: str) -> tuple[str, int, int] | None:
         return None
 
     info_string = stripped[fence_width:].strip()
-    if not info_string or info_string.split(maxsplit=1)[0] != "python":
-        return None
-    return marker, fence_width, indentation
+    language = info_string.split(maxsplit=1)[0] if info_string else ""
+    return marker, fence_width, indentation, language == "python"
 
 
 def _is_closing_fence(line: str, *, marker: str, minimum_width: int) -> bool:
@@ -50,28 +49,30 @@ def _strip_fence_indentation(line: str, indentation: int) -> str:
 def _python_examples(path: Path) -> list[str]:
     """Extract fenced Python examples from one Markdown document."""
     examples: list[str] = []
-    active_fence: tuple[str, int, int] | None = None
+    active_fence: tuple[str, int, int, bool] | None = None
     example_lines: list[str] = []
 
     for line in path.read_text(encoding="utf-8").splitlines(keepends=True):
         if active_fence is None:
-            active_fence = _python_fence_start(line)
-            if active_fence is not None:
+            active_fence = _fence_start(line)
+            if active_fence is not None and active_fence[3]:
                 example_lines = []
             continue
 
-        marker, minimum_width, indentation = active_fence
+        marker, minimum_width, indentation, is_python = active_fence
         if _is_closing_fence(
             line,
             marker=marker,
             minimum_width=minimum_width,
         ):
-            examples.append("".join(example_lines))
+            if is_python:
+                examples.append("".join(example_lines))
             active_fence = None
             continue
-        example_lines.append(_strip_fence_indentation(line, indentation))
+        if is_python:
+            example_lines.append(_strip_fence_indentation(line, indentation))
 
-    if active_fence is not None:
+    if active_fence is not None and active_fence[3]:
         examples.append("".join(example_lines))
     return examples
 
@@ -132,7 +133,9 @@ def test_python_examples_support_markdown_fence_variants(tmp_path: Path) -> None
         "\n"
         '   ~~~python linenums="1"\n   second = 2\n   ~~~~\n'
         "\n"
-        "```bash\necho ignored\n```\n",
+        "```bash\necho ignored\n```\n"
+        "\n"
+        "````markdown\n```python\nnot_python_here = 1\n```\n````\n",
         encoding="utf-8",
     )
 
