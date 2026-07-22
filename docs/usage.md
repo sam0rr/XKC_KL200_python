@@ -5,9 +5,17 @@
 ## Basic Initialization
 
 ```python
-from xkc_kl200_python import XKC_KL200
+"""Initialize an XKC-KL200 sensor connection."""
 
-sensor = XKC_KL200(port="/dev/serial0", baudrate=9600)
+import logging
+
+from xkc_kl200_python import XkcKl200
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+_LOGGER = logging.getLogger(__name__)
+
+with XkcKl200(port="/dev/serial0", baudrate=9600) as sensor:
+    _LOGGER.info("Sensor ready at address %#06x", sensor.address)
 ```
 
 The default connection settings are:
@@ -31,10 +39,17 @@ Before using the library on a Pi:
 ## Manual Distance Read
 
 ```python
-from xkc_kl200_python import XKC_KL200
+"""Read one XKC-KL200 measurement."""
 
-with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
-    print(sensor.read_distance())
+import logging
+
+from xkc_kl200_python import XkcKl200
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+_LOGGER = logging.getLogger(__name__)
+
+with XkcKl200(port="/dev/serial0", baudrate=9600) as sensor:
+    _LOGGER.info("Distance: %s mm", sensor.read_distance())
 ```
 
 ---
@@ -42,16 +57,31 @@ with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
 ## Looping In Your App
 
 ```python
+"""Continuously read XKC-KL200 measurements."""
+
+import logging
 import time
 
-from xkc_kl200_python import XKC_KL200, XKC_KL200_ReadError
+from xkc_kl200_python import XkcKl200, XkcKl200ReadError
 
-with XKC_KL200(port="/dev/serial0", baudrate=9600) as sensor:
+_LOGGER = logging.getLogger(__name__)
+
+
+def log_distance(sensor: XkcKl200) -> None:
+    """Read and log one measurement or the resulting sensor error."""
+    try:
+        distance_mm = sensor.read_distance()
+    except XkcKl200ReadError:
+        _LOGGER.exception("Sensor read failed")
+    else:
+        _LOGGER.info("Distance: %s mm", distance_mm)
+
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+
+with XkcKl200(port="/dev/serial0", baudrate=9600) as sensor:
     while True:
-        try:
-            print(sensor.read_distance())
-        except XKC_KL200_ReadError:
-            print("Read failed")
+        log_distance(sensor)
         time.sleep(0.1)
 ```
 

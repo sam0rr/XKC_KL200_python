@@ -37,7 +37,7 @@ BAUD_RATE_TO_CODE = {
 CODE_TO_BAUD_RATE = {code: baudrate for baudrate, code in BAUD_RATE_TO_CODE.items()}
 
 
-class XKC_KL200_Status(IntEnum):
+class XkcKl200Status(IntEnum):
     """Protocol-level status codes returned by the library API."""
 
     SUCCESS = 0

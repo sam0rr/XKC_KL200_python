@@ -5,24 +5,24 @@ from .constants import (
     CommunicationMode,
     LedMode,
     RelayMode,
-    XKC_KL200_Status,
+    XkcKl200Status,
 )
 from .errors import (
-    XKC_KL200_ReadError,
-    XKC_KL200_ResponseError,
-    XKC_KL200_TimeoutError,
+    XkcKl200ReadError,
+    XkcKl200ResponseError,
+    XkcKl200TimeoutError,
 )
-from .sensor import XKC_KL200
+from .sensor import XkcKl200
 
 # Re-export the supported public API from one stable package entrypoint.
 __all__ = [
-    "XKC_KL200",
-    "SensorConfig",
-    "XKC_KL200_Status",
-    "XKC_KL200_ReadError",
-    "XKC_KL200_TimeoutError",
-    "XKC_KL200_ResponseError",
+    "CommunicationMode",
     "LedMode",
     "RelayMode",
-    "CommunicationMode",
+    "SensorConfig",
+    "XkcKl200",
+    "XkcKl200ReadError",
+    "XkcKl200ResponseError",
+    "XkcKl200Status",
+    "XkcKl200TimeoutError",
 ]

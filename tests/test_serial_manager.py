@@ -4,7 +4,7 @@ import pytest
 from conftest import FakeSerial, FakeSerialFactory
 
 from xkc_kl200_python.config import SensorConfig
-from xkc_kl200_python.constants import XKC_KL200_Status
+from xkc_kl200_python.constants import XkcKl200Status
 from xkc_kl200_python.serial_manager import SerialManager, default_serial_factory
 from xkc_kl200_python.utils import FramePayload, build_command_frame
 
@@ -74,13 +74,13 @@ def test_read_frame_handles_empty_read_with_waiting(
     )
     serial_port = serial_factory.holder["serial"]
 
-    monkeypatch.setattr(type(serial_port), "in_waiting", property(lambda self: 1))
-    monkeypatch.setattr(serial_port, "read", lambda size=1: b"")
+    monkeypatch.setattr(type(serial_port), "in_waiting", property(lambda _self: 1))
+    monkeypatch.setattr(serial_port, "read", lambda _size=1: b"")
 
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result is None
-    assert status == XKC_KL200_Status.TIMEOUT
+    assert status == XkcKl200Status.TIMEOUT
 
 
 def test_read_frame_sleeps_before_timeout(
@@ -100,13 +100,13 @@ def test_read_frame_sleeps_before_timeout(
     )
     monkeypatch.setattr(
         "xkc_kl200_python.serial_manager.time.sleep",
-        lambda duration: sleep_calls.append(duration),
+        sleep_calls.append,
     )
 
     result, status = manager.read_frame(expected_command=0x33, timeout=0.001)
 
     assert result is None
-    assert status == XKC_KL200_Status.TIMEOUT
+    assert status == XkcKl200Status.TIMEOUT
     assert sleep_calls == [0.001]
 
 
@@ -135,7 +135,7 @@ def test_read_frame_skips_leading_junk(serial_factory: FakeSerialFactory) -> Non
         address=0xFFFF,
         payload=FramePayload(data_low=17),
     )
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_extract_frame_keeps_partial_header_after_leading_junk(
@@ -174,7 +174,7 @@ def test_read_frame_waits_for_frame_prefix(serial_factory: FakeSerialFactory) ->
     result, status = manager.read_frame(expected_command=0x33, timeout=0.01)
 
     assert result == frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_zero_timeout_drains_buffered_chunks(
@@ -193,7 +193,7 @@ def test_read_frame_zero_timeout_drains_buffered_chunks(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result == frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_waits_for_partial_frame(serial_factory: FakeSerialFactory) -> None:
@@ -210,7 +210,7 @@ def test_read_frame_waits_for_partial_frame(serial_factory: FakeSerialFactory) -
     result, status = manager.read_frame(expected_command=0x33, timeout=0.01)
 
     assert result == frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_skips_invalid_length_then_recovers(
@@ -240,7 +240,7 @@ def test_read_frame_skips_invalid_length_then_recovers(
         address=0xFFFF,
         payload=FramePayload(data_low=18),
     )
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_invalid_length_reports_response_error(
@@ -257,7 +257,7 @@ def test_read_frame_invalid_length_reports_response_error(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result is None
-    assert status == XKC_KL200_Status.RESPONSE_ERROR
+    assert status == XkcKl200Status.RESPONSE_ERROR
 
 
 def test_read_frame_checksum_error(serial_factory: FakeSerialFactory) -> None:
@@ -274,7 +274,7 @@ def test_read_frame_checksum_error(serial_factory: FakeSerialFactory) -> None:
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result is None
-    assert status == XKC_KL200_Status.CHECKSUM_ERROR
+    assert status == XkcKl200Status.CHECKSUM_ERROR
 
 
 def test_read_frame_recovers_from_checksum_error_with_buffered_valid_reply(
@@ -299,7 +299,7 @@ def test_read_frame_recovers_from_checksum_error_with_buffered_valid_reply(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result == valid_frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_waits_through_interframe_gap_after_checksum_error(
@@ -333,7 +333,7 @@ def test_read_frame_waits_through_interframe_gap_after_checksum_error(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.01)
 
     assert result == valid_frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
     assert sleep_calls == [0.001]
 
 
@@ -360,7 +360,7 @@ def test_read_frame_recovers_from_checksum_error_with_next_ready_chunk(
     result, status = manager.read_frame(expected_command=0x33, timeout=1.0)
 
     assert result == valid_frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_returns_deferred_checksum_error_at_timeout(
@@ -383,13 +383,13 @@ def test_read_frame_returns_deferred_checksum_error_at_timeout(
     )
     monkeypatch.setattr(
         "xkc_kl200_python.serial_manager.time.sleep",
-        lambda duration: sleep_calls.append(duration),
+        sleep_calls.append,
     )
 
     result, status = manager.read_frame(expected_command=0x33, timeout=0.001)
 
     assert result is None
-    assert status == XKC_KL200_Status.CHECKSUM_ERROR
+    assert status == XkcKl200Status.CHECKSUM_ERROR
     assert sleep_calls == []
 
 
@@ -409,7 +409,7 @@ def test_read_frame_invalid_header_reports_response_error(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result is None
-    assert status == XKC_KL200_Status.RESPONSE_ERROR
+    assert status == XkcKl200Status.RESPONSE_ERROR
 
 
 def test_read_frame_wrong_header_for_unique_command_reports_response_error(
@@ -432,7 +432,7 @@ def test_read_frame_wrong_header_for_unique_command_reports_response_error(
     )
 
     assert result is None
-    assert status == XKC_KL200_Status.RESPONSE_ERROR
+    assert status == XkcKl200Status.RESPONSE_ERROR
 
 
 def test_read_frame_matches_expected_header_and_command_for_ambiguous_opcode(
@@ -458,7 +458,7 @@ def test_read_frame_matches_expected_header_and_command_for_ambiguous_opcode(
     )
 
     assert result == expected_frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_resynchronizes_within_checksum_valid_mismatched_candidate(
@@ -481,7 +481,7 @@ def test_read_frame_resynchronizes_within_checksum_valid_mismatched_candidate(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result == expected_frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_zero_timeout_rescans_buffer_after_skipping_stale_frame(
@@ -501,7 +501,7 @@ def test_read_frame_zero_timeout_rescans_buffer_after_skipping_stale_frame(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result == expected_frame
-    assert status == XKC_KL200_Status.SUCCESS
+    assert status == XkcKl200Status.SUCCESS
 
 
 def test_read_frame_reports_checksum_error_for_corrupted_command(
@@ -520,7 +520,7 @@ def test_read_frame_reports_checksum_error_for_corrupted_command(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result is None
-    assert status == XKC_KL200_Status.CHECKSUM_ERROR
+    assert status == XkcKl200Status.CHECKSUM_ERROR
 
 
 def test_read_frame_unexpected_command_error(
@@ -539,7 +539,7 @@ def test_read_frame_unexpected_command_error(
     result, status = manager.read_frame(expected_command=0x33, timeout=0.0)
 
     assert result is None
-    assert status == XKC_KL200_Status.TIMEOUT
+    assert status == XkcKl200Status.TIMEOUT
 
 
 def test_read_frame_honors_deadline_while_draining_stale_frames(
@@ -564,7 +564,7 @@ def test_read_frame_honors_deadline_while_draining_stale_frames(
     result, status = manager.read_frame(expected_command=0x34, timeout=0.0)
 
     assert result is None
-    assert status == XKC_KL200_Status.TIMEOUT
+    assert status == XkcKl200Status.TIMEOUT
 
 
 def test_read_frame_clears_partial_buffer_on_timeout(
@@ -596,6 +596,6 @@ def test_read_frame_clears_partial_buffer_on_timeout(
     )
 
     assert timed_out_result is None
-    assert timed_out_status == XKC_KL200_Status.TIMEOUT
+    assert timed_out_status == XkcKl200Status.TIMEOUT
     assert next_result is None
-    assert next_status == XKC_KL200_Status.TIMEOUT
+    assert next_status == XkcKl200Status.TIMEOUT

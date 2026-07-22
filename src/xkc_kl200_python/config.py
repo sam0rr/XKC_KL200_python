@@ -10,7 +10,7 @@ from .constants import (
 )
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class SensorConfig:
     """Serial connection settings for an XKC-KL200 sensor instance."""
 
