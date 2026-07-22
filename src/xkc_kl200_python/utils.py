@@ -12,7 +12,7 @@ from .constants import (
 )
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class FramePayload:
     """Three data bytes carried by an XKC-KL200 protocol frame."""
 
@@ -35,7 +35,7 @@ class FramePayload:
         return bytes((self.data_high, self.data_low, self.tail))
 
 
-@dataclass(frozen=True, slots=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class ProtocolFrame:
     """Decoded view of a raw 9-byte XKC-KL200 protocol frame."""
 

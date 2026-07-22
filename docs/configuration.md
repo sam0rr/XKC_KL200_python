@@ -7,7 +7,14 @@
 `SensorConfig` stores the serial connection parameters used by the library:
 
 ```python
-from xkc_kl200_python import SensorConfig, XKC_KL200
+"""Configure an XKC-KL200 sensor connection."""
+
+import logging
+
+from xkc_kl200_python import SensorConfig, XkcKl200
+
+logging.basicConfig(level=logging.INFO, format="%(message)s")
+_LOGGER = logging.getLogger(__name__)
 
 config = SensorConfig(
     port="/dev/ttyUSB0",
@@ -17,7 +24,8 @@ config = SensorConfig(
     startup_delay_s=0.1,
 )
 
-sensor = XKC_KL200(config=config)
+with XkcKl200(config=config) as sensor:
+    _LOGGER.info("Sensor configured at address %#06x", sensor.address)
 ```
 
 ---

@@ -7,7 +7,7 @@ from typing import Protocol
 import serial
 
 from .config import SensorConfig
-from .constants import COMMAND_HEADER, FRAME_LENGTH, SYSTEM_HEADER, XKC_KL200_Status
+from .constants import COMMAND_HEADER, FRAME_LENGTH, SYSTEM_HEADER, XkcKl200Status
 from .utils import calculate_checksum
 
 
@@ -113,11 +113,11 @@ class SerialManager:
         expected_header: int | None = None,
         expected_command: int | None = None,
         allow_header_mismatch_skip: bool = False,
-    ) -> tuple[bytes | None, XKC_KL200_Status]:
+    ) -> tuple[bytes | None, XkcKl200Status]:
         """Read one valid frame or return the protocol-level failure status."""
         deadline = time.monotonic() + timeout
         buffered_bytes_at_deadline: int | None = None
-        deferred_error: XKC_KL200_Status | None = None
+        deferred_error: XkcKl200Status | None = None
 
         while True:
             frame, frame_status = self._scan_buffer(
@@ -126,14 +126,11 @@ class SerialManager:
                 expected_command=expected_command,
             )
             if frame is not None:
-                return frame, XKC_KL200_Status.SUCCESS
-            if frame_status == XKC_KL200_Status.CHECKSUM_ERROR:
-                deferred_error = XKC_KL200_Status.CHECKSUM_ERROR
-            elif (
-                frame_status == XKC_KL200_Status.RESPONSE_ERROR
-                and deferred_error != XKC_KL200_Status.CHECKSUM_ERROR
-            ):
-                deferred_error = XKC_KL200_Status.RESPONSE_ERROR
+                return frame, XkcKl200Status.SUCCESS
+            deferred_error = self._prefer_protocol_error(
+                current=deferred_error,
+                candidate=frame_status,
+            )
 
             if time.monotonic() >= deadline:
                 # Snapshot how many bytes were already queued when the timeout
@@ -149,7 +146,7 @@ class SerialManager:
                 self._buffer.clear()
                 if deferred_error is not None:
                     return None, deferred_error
-                return None, XKC_KL200_Status.TIMEOUT
+                return None, XkcKl200Status.TIMEOUT
 
             if self._read_from_serial() > 0:
                 continue
@@ -162,9 +159,9 @@ class SerialManager:
         allow_header_mismatch_skip: bool,
         expected_header: int | None,
         expected_command: int | None,
-    ) -> tuple[bytes | None, XKC_KL200_Status | None]:
+    ) -> tuple[bytes | None, XkcKl200Status | None]:
         """Scan buffered bytes until a frame is found or parsing stalls."""
-        deferred_error: XKC_KL200_Status | None = None
+        deferred_error: XkcKl200Status | None = None
 
         while True:
             frame, frame_status, consumed_data = self._extract_frame(
@@ -174,13 +171,10 @@ class SerialManager:
             )
             if frame is not None:
                 return frame, None
-            if frame_status == XKC_KL200_Status.CHECKSUM_ERROR:
-                deferred_error = XKC_KL200_Status.CHECKSUM_ERROR
-            elif (
-                frame_status == XKC_KL200_Status.RESPONSE_ERROR
-                and deferred_error != XKC_KL200_Status.CHECKSUM_ERROR
-            ):
-                deferred_error = XKC_KL200_Status.RESPONSE_ERROR
+            deferred_error = self._prefer_protocol_error(
+                current=deferred_error,
+                candidate=frame_status,
+            )
 
             if not consumed_data:
                 return None, deferred_error
@@ -205,24 +199,14 @@ class SerialManager:
         allow_header_mismatch_skip: bool,
         expected_header: int | None,
         expected_command: int | None,
-    ) -> tuple[bytes | None, XKC_KL200_Status | None, bool]:
+    ) -> tuple[bytes | None, XkcKl200Status | None, bool]:
         """Return the next valid frame, one protocol error, and whether data was consumed."""
         if not self._buffer:
             return None, None, False
 
-        header_index = self._find_next_header()
-        if header_index < 0:
-            if len(self._buffer) >= FRAME_LENGTH:
-                del self._buffer[0]
-                return None, XKC_KL200_Status.RESPONSE_ERROR, True
-            self._buffer.clear()
-            return None, None, True
-        if header_index > 0:
-            malformed_frame = len(self._buffer) >= FRAME_LENGTH
-            del self._buffer[:header_index]
-            if malformed_frame:
-                return None, XKC_KL200_Status.RESPONSE_ERROR, True
-            return None, None, True
+        consumed_data, prefix_status = self._consume_misaligned_prefix()
+        if consumed_data:
+            return None, prefix_status, True
 
         if len(self._buffer) < 3:
             return None, None, False
@@ -231,7 +215,7 @@ class SerialManager:
         if frame_length != FRAME_LENGTH:
             del self._buffer[0]
             if len(self._buffer) >= FRAME_LENGTH - 1:
-                return None, XKC_KL200_Status.RESPONSE_ERROR, True
+                return None, XkcKl200Status.RESPONSE_ERROR, True
             return None, None, True
 
         if len(self._buffer) < FRAME_LENGTH:
@@ -240,7 +224,7 @@ class SerialManager:
         candidate = bytes(self._buffer[:FRAME_LENGTH])
         if candidate[-1] != calculate_checksum(candidate[:-1]):
             del self._buffer[0]
-            return None, XKC_KL200_Status.CHECKSUM_ERROR, True
+            return None, XkcKl200Status.CHECKSUM_ERROR, True
 
         if expected_command is not None and candidate[1] != expected_command:
             return self._consume_mismatched_candidate(error_status=None)
@@ -250,18 +234,52 @@ class SerialManager:
                 error_status=(
                     None
                     if allow_header_mismatch_skip
-                    else XKC_KL200_Status.RESPONSE_ERROR
+                    else XkcKl200Status.RESPONSE_ERROR
                 )
             )
 
         del self._buffer[:FRAME_LENGTH]
         return candidate, None, True
 
+    def _consume_misaligned_prefix(
+        self,
+    ) -> tuple[bool, XkcKl200Status | None]:
+        """Discard bytes before a protocol header and report malformed data."""
+        header_index = self._find_next_header()
+        if header_index == 0:
+            return False, None
+
+        malformed_frame = len(self._buffer) >= FRAME_LENGTH
+        if header_index < 0:
+            discard_count = 1 if malformed_frame else len(self._buffer)
+        else:
+            discard_count = header_index
+
+        del self._buffer[:discard_count]
+        status = XkcKl200Status.RESPONSE_ERROR if malformed_frame else None
+        return True, status
+
+    @staticmethod
+    def _prefer_protocol_error(
+        *,
+        current: XkcKl200Status | None,
+        candidate: XkcKl200Status | None,
+    ) -> XkcKl200Status | None:
+        """Keep the most specific protocol error observed while scanning."""
+        if candidate == XkcKl200Status.CHECKSUM_ERROR:
+            return XkcKl200Status.CHECKSUM_ERROR
+        if (
+            candidate == XkcKl200Status.RESPONSE_ERROR
+            and current != XkcKl200Status.CHECKSUM_ERROR
+        ):
+            return XkcKl200Status.RESPONSE_ERROR
+        return current
+
     def _consume_mismatched_candidate(
         self,
         *,
-        error_status: XKC_KL200_Status | None,
-    ) -> tuple[None, XKC_KL200_Status | None, bool]:
+        error_status: XkcKl200Status | None,
+    ) -> tuple[None, XkcKl200Status | None, bool]:
         """Resynchronize within a checksum-valid mismatched candidate."""
         overlap_header_index = self._find_next_header(start=1, stop=FRAME_LENGTH)
         if overlap_header_index < 0:
