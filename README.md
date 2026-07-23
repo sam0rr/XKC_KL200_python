@@ -11,7 +11,7 @@ A simplified, typed, and testable Python library for controlling the `XKC-KL200-
 - Typed API for sensor control and distance reads.
 - Straightforward request/response serial flow.
 - No hardware required for tests because the serial link is mocked.
-- `uv`, `black`, `ruff`, `mypy`, and `pytest` ready from the start.
+- `uv`, `ruff`, `mypy`, `pytest`, and `vulture` ready from the start.
 
 ---
 

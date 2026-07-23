@@ -6,9 +6,14 @@ from typing import Protocol
 
 import serial
 
+from ._protocol import (
+    COMMAND_HEADER,
+    FRAME_LENGTH,
+    SYSTEM_HEADER,
+    calculate_checksum,
+)
 from .config import SensorConfig
-from .constants import COMMAND_HEADER, FRAME_LENGTH, SYSTEM_HEADER, XkcKl200Status
-from .utils import calculate_checksum
+from .constants import XkcKl200Status
 
 
 class SerialPort(Protocol):

@@ -1,9 +1,9 @@
-"""Protocol helper tests shared by runtime code and test fixtures."""
+"""Tests for private protocol helpers."""
 
 import pytest
 
-from xkc_kl200_python.constants import READ_DISTANCE_COMMAND
-from xkc_kl200_python.utils import (
+from xkc_kl200_python._protocol import (
+    READ_DISTANCE_COMMAND,
     FramePayload,
     build_command_frame,
     calculate_checksum,

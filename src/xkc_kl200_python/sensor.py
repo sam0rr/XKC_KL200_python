@@ -4,13 +4,13 @@ import time
 from dataclasses import replace
 from typing import Self, TypeVar
 
-from .config import SensorConfig
-from .constants import (
+from ._protocol import (
     BAUD_RATE_TO_CODE,
     CHANGE_ADDRESS_COMMAND,
     CHANGE_BAUD_RATE_COMMAND,
     CODE_TO_BAUD_RATE,
     COMMAND_HEADER,
+    EMPTY_FRAME_PAYLOAD,
     MAX_ADDRESS,
     MIN_ADDRESS,
     READ_DISTANCE_COMMAND,
@@ -19,22 +19,24 @@ from .constants import (
     SET_LED_MODE_COMMAND,
     SET_RELAY_MODE_COMMAND,
     SYSTEM_HEADER,
+    FramePayload,
+    build_command_frame,
+    parse_frame,
+    parse_measurement_frame,
+)
+from ._serial_manager import SerialFactory, SerialManager
+from .config import SensorConfig
+from .constants import (
     CommunicationMode,
     LedMode,
     RelayMode,
     XkcKl200Status,
 )
 from .errors import XkcKl200ResponseError, XkcKl200TimeoutError
-from .serial_manager import SerialFactory, SerialManager
-from .utils import (
-    EMPTY_FRAME_PAYLOAD,
-    FramePayload,
-    build_command_frame,
-    parse_frame,
-    parse_measurement_frame,
-)
 
-EnumValue = TypeVar("EnumValue", bound=int)
+__all__ = ["XkcKl200"]
+
+_EnumValue = TypeVar("_EnumValue", bound=int)
 
 
 class XkcKl200:
@@ -263,7 +265,7 @@ class XkcKl200:
 
     @staticmethod
     def _coerce_enum_value(
-        value: int | EnumValue, enum_type: type[EnumValue]
+        value: int | _EnumValue, enum_type: type[_EnumValue]
     ) -> int | None:
         """Validate an integer-like value against an enum type."""
         try:

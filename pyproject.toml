@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "xkc-kl200-python"
-version = "6.0.0"
+version = "7.0.0"
 description = "A typed Python library for controlling the XKC-KL200 UART laser distance sensor."
 readme = "README.md"
 authors = [

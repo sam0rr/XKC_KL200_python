@@ -3,10 +3,13 @@
 import pytest
 from conftest import FakeSerial, FakeSerialFactory
 
+from xkc_kl200_python._protocol import FramePayload, build_command_frame
+from xkc_kl200_python._serial_manager import (
+    SerialManager,
+    default_serial_factory,
+)
 from xkc_kl200_python.config import SensorConfig
 from xkc_kl200_python.constants import XkcKl200Status
-from xkc_kl200_python.serial_manager import SerialManager, default_serial_factory
-from xkc_kl200_python.utils import FramePayload, build_command_frame
 
 
 def test_write_frame(serial_factory: FakeSerialFactory) -> None:
@@ -42,7 +45,7 @@ def test_default_serial_factory_uses_serial_module(
         return fake_serial
 
     monkeypatch.setattr(
-        "xkc_kl200_python.serial_manager.serial.Serial", fake_constructor
+        "xkc_kl200_python._serial_manager.serial.Serial", fake_constructor
     )
 
     result = default_serial_factory("/dev/ttyUSB0", 9600, 1.0)
@@ -95,11 +98,11 @@ def test_read_frame_sleeps_before_timeout(
     monotonic_values = iter([0.0, 0.0, 0.002])
 
     monkeypatch.setattr(
-        "xkc_kl200_python.serial_manager.time.monotonic",
+        "xkc_kl200_python._serial_manager.time.monotonic",
         lambda: next(monotonic_values),
     )
     monkeypatch.setattr(
-        "xkc_kl200_python.serial_manager.time.sleep",
+        "xkc_kl200_python._serial_manager.time.sleep",
         sleep_calls.append,
     )
 
@@ -328,7 +331,7 @@ def test_read_frame_waits_through_interframe_gap_after_checksum_error(
         if len(sleep_calls) == 1:
             serial_port.queue_read(valid_frame)
 
-    monkeypatch.setattr("xkc_kl200_python.serial_manager.time.sleep", fake_sleep)
+    monkeypatch.setattr("xkc_kl200_python._serial_manager.time.sleep", fake_sleep)
 
     result, status = manager.read_frame(expected_command=0x33, timeout=0.01)
 
@@ -378,11 +381,11 @@ def test_read_frame_returns_deferred_checksum_error_at_timeout(
         bytes([0x62, 0x33, 0x09, 0xFF, 0xFF, 0x00, 0x64, 0x00, 0x00])
     )
     monkeypatch.setattr(
-        "xkc_kl200_python.serial_manager.time.monotonic",
+        "xkc_kl200_python._serial_manager.time.monotonic",
         lambda: next(monotonic_values),
     )
     monkeypatch.setattr(
-        "xkc_kl200_python.serial_manager.time.sleep",
+        "xkc_kl200_python._serial_manager.time.sleep",
         sleep_calls.append,
     )
 

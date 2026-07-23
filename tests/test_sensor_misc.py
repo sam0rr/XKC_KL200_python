@@ -4,8 +4,8 @@ import pytest
 from conftest import FakeSerialFactory
 
 from xkc_kl200_python import CommunicationMode, SensorConfig, XkcKl200
+from xkc_kl200_python._protocol import FramePayload, build_command_frame
 from xkc_kl200_python.constants import XkcKl200Status
-from xkc_kl200_python.utils import FramePayload, build_command_frame
 
 
 def make_sensor(

@@ -8,8 +8,8 @@ from xkc_kl200_python import (
     XkcKl200ResponseError,
     XkcKl200TimeoutError,
 )
+from xkc_kl200_python._protocol import FramePayload, build_command_frame
 from xkc_kl200_python.constants import XkcKl200Status
-from xkc_kl200_python.utils import FramePayload, build_command_frame
 
 
 def test_read_distance_updates_state(serial_factory: FakeSerialFactory) -> None:

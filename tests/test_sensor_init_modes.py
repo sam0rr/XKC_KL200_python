@@ -3,8 +3,8 @@
 from conftest import FakeSerialFactory
 
 from xkc_kl200_python import CommunicationMode, LedMode, RelayMode, XkcKl200
+from xkc_kl200_python._protocol import build_command_frame
 from xkc_kl200_python.constants import XkcKl200Status
-from xkc_kl200_python.utils import build_command_frame
 
 
 def test_invalid_led_mode_returns_invalid_parameter(
