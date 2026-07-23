@@ -2,12 +2,14 @@
 
 from dataclasses import dataclass
 
-from .constants import (
+from ._protocol import (
     BAUD_RATE_TO_CODE,
     DEFAULT_SENSOR_ADDRESS,
     MAX_ADDRESS,
     MIN_ADDRESS,
 )
+
+__all__ = ["SensorConfig"]
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)

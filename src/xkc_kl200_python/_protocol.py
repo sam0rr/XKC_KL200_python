@@ -1,15 +1,39 @@
-"""Protocol frame helpers shared by commands, parsing, and tests."""
+"""Wire constants and frame helpers for the XKC-KL200 UART protocol."""
 
 from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Final
 
-from .constants import (
-    COMMAND_HEADER,
-    FRAME_LENGTH,
-    READ_DISTANCE_COMMAND,
-    SYSTEM_HEADER,
-)
+FRAME_LENGTH = 9
+COMMAND_HEADER = 0x62
+SYSTEM_HEADER = 0x61
+DEFAULT_SENSOR_ADDRESS = 0xFFFF
+
+READ_DISTANCE_COMMAND = 0x33
+CHANGE_BAUD_RATE_COMMAND = 0x30
+CHANGE_ADDRESS_COMMAND = 0x32
+SET_LED_MODE_COMMAND = 0x37
+SET_RELAY_MODE_COMMAND = 0x38
+RESET_COMMAND = 0x39
+SET_COMMUNICATION_MODE_COMMAND = 0x30
+
+MIN_ADDRESS = 0x0000
+MAX_ADDRESS = 0xFFFE
+
+BAUD_RATE_TO_CODE = {
+    2400: 0,
+    4800: 1,
+    9600: 2,
+    14400: 3,
+    19200: 4,
+    38400: 5,
+    56000: 6,
+    57600: 7,
+    115200: 8,
+    128000: 9,
+}
+
+CODE_TO_BAUD_RATE = {code: baudrate for baudrate, code in BAUD_RATE_TO_CODE.items()}
 
 
 @dataclass(frozen=True, kw_only=True, slots=True)
