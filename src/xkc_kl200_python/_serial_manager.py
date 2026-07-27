@@ -205,7 +205,7 @@ class SerialManager:
         expected_header: int | None,
         expected_command: int | None,
     ) -> tuple[bytes | None, XkcKl200Status | None, bool]:
-        """Return the next valid frame, one protocol error, and whether data was consumed."""
+        """Return a valid frame, one protocol error, and whether data was consumed."""
         if not self._buffer:
             return None, None, False
 

@@ -47,7 +47,7 @@ def test_read_distance_timeout_returns_last_distance(
 def test_read_distance_invalid_frame_returns_last_distance(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that corrupted expected frames fail explicitly and preserve the last good value."""
+    """Verify corrupt frames fail explicitly and preserve the last good value."""
     sensor = XkcKl200(port="/dev/ttyUSB0", timeout=0.01, serial_factory=serial_factory)
     serial_port = serial_factory.holder["serial"]
     sensor._last_received_distance_mm = 55
@@ -156,7 +156,7 @@ def test_read_distance_skips_stale_valid_frame(
 def test_read_distance_skips_stale_valid_frame_in_same_chunk(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a coalesced stale frame and measurement still succeed at zero timeout."""
+    """Verify a stale frame and measurement still succeed at zero timeout."""
     sensor = XkcKl200(port="/dev/ttyUSB0", timeout=0.0, serial_factory=serial_factory)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
@@ -178,7 +178,7 @@ def test_read_distance_skips_stale_valid_frame_in_same_chunk(
 def test_read_distance_resynchronizes_within_checksum_valid_overlap(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that an overlapped checksum-valid window still recovers the buffered measurement."""
+    """Verify an overlapped valid window recovers the buffered measurement."""
     sensor = XkcKl200(port="/dev/ttyUSB0", timeout=0.0, serial_factory=serial_factory)
     serial_port = serial_factory.holder["serial"]
     measurement_frame = build_command_frame(
@@ -221,7 +221,7 @@ def test_change_baud_rate_accepts_real_baudrate(
 def test_change_baud_rate_requires_command_header_ack(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that change_baud_rate ignores a stale system-header ACK sharing command 0x30."""
+    """Verify baud changes ignore a stale system ACK sharing command 0x30."""
     sensor = XkcKl200(port="/dev/ttyUSB0", timeout=0.0, serial_factory=serial_factory)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(

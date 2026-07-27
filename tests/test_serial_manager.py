@@ -144,7 +144,7 @@ def test_read_frame_skips_leading_junk(serial_factory: FakeSerialFactory) -> Non
 def test_extract_frame_keeps_partial_header_after_leading_junk(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that helper resynchronization keeps a partial header candidate for later bytes."""
+    """Verify resynchronization keeps a partial header for later bytes."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -249,7 +249,7 @@ def test_read_frame_skips_invalid_length_then_recovers(
 def test_read_frame_invalid_length_reports_response_error(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a complete malformed frame reports a response error after resync fails."""
+    """Verify a malformed frame reports an error after resync fails."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -283,7 +283,7 @@ def test_read_frame_checksum_error(serial_factory: FakeSerialFactory) -> None:
 def test_read_frame_recovers_from_checksum_error_with_buffered_valid_reply(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a bad frame does not discard a valid reply already buffered behind it."""
+    """Verify a bad frame retains a valid reply buffered behind it."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -308,7 +308,7 @@ def test_read_frame_recovers_from_checksum_error_with_buffered_valid_reply(
 def test_read_frame_waits_through_interframe_gap_after_checksum_error(
     serial_factory: FakeSerialFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Verify that a malformed frame does not fail early while a valid reply is still in flight."""
+    """Verify a malformed frame waits while a valid reply is still in flight."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -343,7 +343,7 @@ def test_read_frame_waits_through_interframe_gap_after_checksum_error(
 def test_read_frame_recovers_from_checksum_error_with_next_ready_chunk(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a bad frame can recover using a valid reply read immediately afterward."""
+    """Verify a bad frame can recover with a valid reply read afterward."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -369,7 +369,7 @@ def test_read_frame_recovers_from_checksum_error_with_next_ready_chunk(
 def test_read_frame_returns_deferred_checksum_error_at_timeout(
     serial_factory: FakeSerialFactory, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """Verify that malformed frames still surface as errors once the timeout window closes."""
+    """Verify malformed frames surface as errors after the timeout closes."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -399,7 +399,7 @@ def test_read_frame_returns_deferred_checksum_error_at_timeout(
 def test_read_frame_invalid_header_reports_response_error(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a complete reply with a corrupted header is not misreported as a timeout."""
+    """Verify a reply with a corrupt header is not reported as a timeout."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -418,7 +418,7 @@ def test_read_frame_invalid_header_reports_response_error(
 def test_read_frame_wrong_header_for_unique_command_reports_response_error(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a wrong-header reply for a unique command is reported as malformed."""
+    """Verify a wrong-header reply for a unique command is malformed."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -441,7 +441,7 @@ def test_read_frame_wrong_header_for_unique_command_reports_response_error(
 def test_read_frame_matches_expected_header_and_command_for_ambiguous_opcode(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that replies with the right command byte but wrong header are skipped only when requested."""
+    """Verify wrong-header replies are skipped only when requested."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -467,7 +467,7 @@ def test_read_frame_matches_expected_header_and_command_for_ambiguous_opcode(
 def test_read_frame_resynchronizes_within_checksum_valid_mismatched_candidate(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a checksum-valid overlapped candidate does not discard the real reply."""
+    """Verify a valid overlapped candidate does not discard the real reply."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -490,7 +490,7 @@ def test_read_frame_resynchronizes_within_checksum_valid_mismatched_candidate(
 def test_read_frame_zero_timeout_rescans_buffer_after_skipping_stale_frame(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a stale frame consumed after timeout does not hide a buffered valid reply."""
+    """Verify a stale frame after timeout does not hide a valid reply."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
@@ -510,7 +510,7 @@ def test_read_frame_zero_timeout_rescans_buffer_after_skipping_stale_frame(
 def test_read_frame_reports_checksum_error_for_corrupted_command(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that a bad checksum is reported even when the command byte is corrupted."""
+    """Verify a bad checksum is reported despite a corrupt command byte."""
     manager = SerialManager(
         config=SensorConfig(port="/dev/ttyUSB0"),
         serial_factory=serial_factory,
