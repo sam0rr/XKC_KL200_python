@@ -64,7 +64,7 @@ def test_reset_input_buffer_clears_serial_input(
 def test_reset_output_buffer_clears_serial_output(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that callers can clear the output buffer directly when aborting recovery."""
+    """Verify callers can clear the output buffer when aborting recovery."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
 
@@ -93,7 +93,7 @@ def test_hard_and_soft_reset(serial_factory: FakeSerialFactory) -> None:
 def test_change_address_success_updates_config_and_state(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that address changes update both config intent and cached runtime state."""
+    """Verify address changes update config intent and cached runtime state."""
     sensor = make_sensor(serial_factory)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(
@@ -230,7 +230,7 @@ def test_communication_mode_success_uses_system_header(
 def test_set_communication_mode_requires_system_header_ack(
     serial_factory: FakeSerialFactory,
 ) -> None:
-    """Verify that set_communication_mode ignores a stale baud-rate ACK with the same command byte."""
+    """Verify communication mode ignores a stale ACK with the same command byte."""
     sensor = make_sensor(serial_factory, timeout=0.0)
     serial_port = serial_factory.holder["serial"]
     serial_port.queue_read(

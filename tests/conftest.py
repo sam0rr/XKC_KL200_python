@@ -46,7 +46,7 @@ class FakeSerial:
 
     def flush(self) -> None:
         """Accept flush requests without additional behavior."""
-        return None
+        return
 
     def reset_input_buffer(self) -> None:
         """Record an input-buffer reset request."""
